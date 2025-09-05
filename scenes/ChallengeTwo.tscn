@@ -1,0 +1,28 @@
+[gd_scene load_steps=4 format=3 uid="uid://bx7yhw85vhk3y"]
+
+[ext_resource type="Script" path="res://scripts/challenge_two.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/wall_visual.gd" id="2_wall_visual"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(20, 640)
+
+[node name="ChallengeTwo" type="Node2D"]
+script = ExtResource("1")
+
+[node name="Audio" type="Node" parent="."]
+
+[node name="Click" type="AudioStreamPlayer" parent="Audio"]
+
+[node name="Release" type="AudioStreamPlayer" parent="Audio"]
+
+[node name="Engine" type="AudioStreamPlayer" parent="Audio"]
+volume_db = -25.0
+
+[node name="Wall" type="StaticBody2D" parent="."]
+position = Vector2(1000, 448)
+
+[node name="WallCollision" type="CollisionShape2D" parent="Wall"]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="WallVisual" type="Node2D" parent="Wall"]
+script = ExtResource("2_wall_visual")

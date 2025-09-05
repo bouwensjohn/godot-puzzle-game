@@ -3,6 +3,7 @@ extends Node
 var _click: AudioStreamPlayer
 var _release: AudioStreamPlayer
 var _engine: AudioStreamPlayer
+var _triumph: AudioStreamPlayer
 
 func _ready() -> void:
 	_refresh_nodes()
@@ -16,6 +17,18 @@ func _refresh_nodes() -> void:
 	_click = root.get_node_or_null("Audio/Click")
 	_release = root.get_node_or_null("Audio/Release")
 	_engine = root.get_node_or_null("Audio/Engine")
+	
+	# Create engine player if it doesn't exist in scene
+	if not _engine:
+		_engine = AudioStreamPlayer.new()
+		add_child(_engine)
+		_engine.stream = _generate_beep(200.0, 1.0)
+		_engine.volume_db = -25.0
+	
+	# Create triumph player if it doesn't exist
+	if not _triumph:
+		_triumph = AudioStreamPlayer.new()
+		add_child(_triumph)
 
 func _create_beep_sounds() -> void:
 	# Create simple beep sounds using AudioStreamWAV
@@ -29,7 +42,12 @@ func _create_beep_sounds() -> void:
 	
 	if _engine:
 		_engine.stream = _generate_beep(200.0, 1.0)
-		_engine.volume_db = -80.0
+		_engine.volume_db = -25.0  # Start at idle volume instead of muted
+	
+	# Create triumph sound
+	if _triumph:
+		_triumph.stream = _generate_triumph_sound()
+		_triumph.volume_db = -3.0
 
 func _generate_beep(frequency: float, duration: float) -> AudioStreamWAV:
 	var sample_rate := 22050
@@ -61,6 +79,52 @@ func _generate_beep(frequency: float, duration: float) -> AudioStreamWAV:
 	wav.data = pcm_data
 	return wav
 
+func _generate_triumph_sound() -> AudioStreamWAV:
+	var sample_rate := 22050
+	var duration := 1.5
+	var samples := int(sample_rate * duration)
+	var data := PackedFloat32Array()
+	
+	# Create a triumphant chord progression
+	var frequencies = [523.25, 659.25, 783.99]  # C5, E5, G5 major chord
+	
+	for i in samples:
+		var t := float(i) / sample_rate
+		var amplitude := 0.0
+		
+		# Add harmonics for richer sound
+		for freq in frequencies:
+			amplitude += sin(2.0 * PI * freq * t) * 0.15
+			amplitude += sin(2.0 * PI * freq * 2.0 * t) * 0.05  # Octave harmonic
+		
+		# Add some vibrato
+		amplitude *= (1.0 + 0.1 * sin(2.0 * PI * 6.0 * t))
+		
+		# Envelope: attack, sustain, decay
+		var envelope := 1.0
+		if t < 0.1:
+			envelope = t / 0.1  # Attack
+		elif t > duration - 0.3:
+			envelope = (duration - t) / 0.3  # Decay
+		
+		amplitude *= envelope
+		data.append(amplitude)
+	
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = sample_rate
+	
+	# Convert float data to 16-bit PCM
+	var pcm_data := PackedByteArray()
+	for sample in data:
+		var int_sample := int(sample * 32767.0)
+		int_sample = clamp(int_sample, -32768, 32767)
+		pcm_data.append(int_sample & 0xFF)
+		pcm_data.append((int_sample >> 8) & 0xFF)
+	
+	wav.data = pcm_data
+	return wav
+
 func click() -> void:
 	if _click == null: _refresh_nodes()
 	if _click and _click.stream:
@@ -75,10 +139,14 @@ func thrust(on: bool) -> void:
 	if _engine == null: _refresh_nodes()
 	if _engine and _engine.stream:
 		if on:
-			_engine.volume_db = -12.0
-			if not _engine.playing:
-				_engine.play()
+			_engine.volume_db = -12.0  # Full throttle volume
 		else:
-			_engine.volume_db = -80.0
-			if _engine.playing:
-				_engine.stop()
+			_engine.volume_db = -25.0  # Idle volume (audible but quiet)
+		
+		# Keep engine running continuously
+		if not _engine.playing:
+			_engine.play()
+
+func triumph() -> void:
+	if _triumph and _triumph.stream:
+		_triumph.play()

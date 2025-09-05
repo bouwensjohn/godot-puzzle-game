@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://25nga78vmqsq"
-path="res://.godot/imported/cave_background.png-851d7cb59539a473f2431e23e8d3dbd2.ctex"
+uid="uid://dtiqo6ga7aquj"
+path="res://.godot/imported/pushy_splash.jpg-109ff5fbcde860237cc707b42c26b371.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://textures/cave_background.png"
-dest_files=["res://.godot/imported/cave_background.png-851d7cb59539a473f2431e23e8d3dbd2.ctex"]
+source_file="res://textures/pushy_splash.jpg"
+dest_files=["res://.godot/imported/pushy_splash.jpg-109ff5fbcde860237cc707b42c26b371.ctex"]
 
 [params]
 

@@ -63,7 +63,7 @@ func _draw() -> void:
 	# skid marks when skidding - draw FIRST so they appear behind the forklift
 	if is_skidding:
 		var skid_alpha := int(max(skid_intensity, 0.5) * 255)  # More visible
-		var skid_color := Color8(16, 128, 16, skid_alpha)  # Darker gray color
+		var skid_color := Color8(64, 128, 64, skid_alpha)  # Darker gray color
 		# Draw skid marks from rear wheels following lateral velocity direction
 		var rear_left_center := Vector2(-20, -18)
 		var rear_right_center := Vector2(-20, 18)
@@ -99,7 +99,7 @@ func _draw() -> void:
 			var perpendicular_dir := Vector2(-local_lateral_direction.y, local_lateral_direction.x)  # 90 degrees rotated
 			var dust_direction := perpendicular_dir * randf_range(8, 20)
 			var dust_alpha := int(skid_alpha * randf_range(0.2, 1.0))  # More visible dust
-			var dust_color := Color8(16, 128, 16, dust_alpha)
+			var dust_color := Color8(64, 128, 64, dust_alpha)
 			# Left wheel dust
 			draw_line(rear_left_center + dust_offset, rear_left_center + dust_offset + dust_direction, dust_color, 1.0)
 			# Right wheel dust
@@ -138,7 +138,7 @@ func _draw() -> void:
 			var perpendicular_dir := Vector2(-local_lateral_direction.y, local_lateral_direction.x)  # 90 degrees rotated
 			var dust_direction := perpendicular_dir * randf_range(6, 15)
 			var dust_alpha := int(skid_alpha * randf_range(0.2, 1.0))  # More visible dust
-			var dust_color := Color8(16, 128, 16, dust_alpha)
+			var dust_color := Color8(64, 128, 64, dust_alpha)
 			# Left front wheel dust
 			draw_line(front_left_center + dust_offset, front_left_center + dust_offset + dust_direction, dust_color, 0.8)
 			# Right front wheel dust

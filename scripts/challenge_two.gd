@@ -11,9 +11,15 @@ var ship: Node2D
 var piece: Node2D
 var slot: Node2D
 var hud: CanvasLayer
+var wall: StaticBody2D
 
 var release_cooldown := 0.0
 var elapsed_time := 0.0
+
+# Wall visual properties
+var wall_position: Vector2
+var wall_size: Vector2 = Vector2(20, 640)
+var wall_color: Color = Color(0.4, 0.3, 0.2, 1.0)
 
 func _ready() -> void:
 	# Initialize configuration values
@@ -29,23 +35,48 @@ func _ready() -> void:
 	piece = load("res://scenes/Piece.tscn").instantiate()
 	slot = load("res://scenes/Slot.tscn").instantiate()
 	hud = load("res://scenes/HUD.tscn").instantiate()
+	# Get wall reference from scene first
+	wall = $Wall
+	wall_position = wall.global_position
+	
 	add_child(background)
+	# Move wall after background to render on top
+	move_child(wall, get_child_count())
 	add_child(ship)
 	add_child(piece)
 	add_child(slot)
 	add_child(hud)
+	
+	# Add visual debug for wall
+	print("Wall position: ", wall.global_position)
+	print("Wall collision shape size: ", wall.get_node("WallCollision").shape.size)
+	
 	# Initial state (mirrors HTML prototype)
 	ship.global_position = Vector2(W*0.5, H*0.75)
 	ship.rotation = -PI/2.0
 	ship.set("velocity", Vector2.ZERO)
-	piece.global_position = Vector2(W*0.3, H*0.35)
+	piece.global_position = Vector2(W*0.2, H*0.35)
 	piece.rotation = 0.0
 	piece.set("velocity", Vector2.ZERO)
 	piece.set("held", false)
-	slot.global_position = Vector2(W*0.7, H*0.35)
+	slot.global_position = Vector2(W*0.8, H*0.35)
 	slot.rotation = 0.0
 	slot.set("snapped", false)
 	update_hud()
+
+func _draw() -> void:
+	# Draw the wall visual directly on top of everything
+	var wall_rect = Rect2(wall_position.x - wall_size.x * 0.5, wall_position.y - wall_size.y * 0.5, wall_size.x, wall_size.y)
+	draw_rect(wall_rect, wall_color)
+	# Draw border for better visibility
+	draw_rect(wall_rect, Color.BLACK, false, 3.0)
+	
+	# Draw debug text to confirm wall is being drawn
+	var font = ThemeDB.fallback_font
+	draw_string(font, Vector2(wall_position.x - 30, wall_position.y - 350), "WALL", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color.WHITE)
+
+func _process(_delta: float) -> void:
+	queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
 	# Action-based (works if Input Map is configured)
@@ -66,9 +97,12 @@ func _physics_process(delta: float) -> void:
 	elapsed_time += delta
 	if release_cooldown > 0.0:
 		release_cooldown -= delta
-	# Movement
+	
+	# Movement with collision detection
 	(ship as Node).call("update_move", delta)
+	handle_wall_collision()
 	wrap_position(ship)
+	
 	# Held / free movement
 	if piece.get("held"):
 		piece.rotation = ship.rotation
@@ -79,6 +113,7 @@ func _physics_process(delta: float) -> void:
 	elif not slot.get("snapped"):
 		(piece as Node).call("update_free", delta)
 		wrap_position(piece)
+	
 	# Snap check
 	if not piece.get("held") and not slot.get("snapped"):
 		var near: bool = piece.global_position.distance_to(slot.global_position) < SNAP_RADIUS
@@ -90,7 +125,7 @@ func _physics_process(delta: float) -> void:
 			piece.rotation = slot.rotation
 			var am := get_node_or_null("/root/AudioManager")
 			if am: am.call("click")
-			# record completion
+			# Record completion and notify game manager
 			var sm := get_node_or_null("/root/SaveManager")
 			if sm:
 				sm.call("record_attempt", true, elapsed_time)
@@ -98,6 +133,61 @@ func _physics_process(delta: float) -> void:
 			# Notify game manager that challenge is complete
 			challenge_completed()
 	update_hud()
+
+func handle_wall_collision() -> void:
+	# Check if ship collides with wall
+	var ship_pos = ship.global_position
+	var wall_pos = wall.global_position
+	var wall_size = Vector2(20, H * 0.5)
+	
+	# Simple AABB collision detection
+	var ship_radius = 30.0  # Approximate ship radius
+	var wall_left = wall_pos.x - wall_size.x * 0.5
+	var wall_right = wall_pos.x + wall_size.x * 0.5
+	var wall_top = wall_pos.y - wall_size.y * 0.5
+	var wall_bottom = wall_pos.y + wall_size.y * 0.5
+	
+	if (ship_pos.x + ship_radius > wall_left and 
+		ship_pos.x - ship_radius < wall_right and
+		ship_pos.y + ship_radius > wall_top and
+		ship_pos.y - ship_radius < wall_bottom):
+		
+		# Collision detected - bounce the ship
+		var velocity = ship.get("velocity") as Vector2
+		
+		# Determine which side of the wall we hit based on overlap
+		var overlap_left = (ship_pos.x + ship_radius) - wall_left
+		var overlap_right = wall_right - (ship_pos.x - ship_radius)
+		var overlap_top = (ship_pos.y + ship_radius) - wall_top
+		var overlap_bottom = wall_bottom - (ship_pos.y - ship_radius)
+		
+		# Find the smallest overlap to determine collision side
+		var min_overlap = min(min(overlap_left, overlap_right), min(overlap_top, overlap_bottom))
+		
+		if min_overlap == overlap_left:
+			# Hit from left side
+			velocity.x = -abs(velocity.x) * 0.8
+			ship.global_position.x = wall_left - ship_radius - 2
+		elif min_overlap == overlap_right:
+			# Hit from right side
+			velocity.x = abs(velocity.x) * 0.8
+			ship.global_position.x = wall_right + ship_radius + 2
+		elif min_overlap == overlap_top:
+			# Hit from top
+			velocity.y = -abs(velocity.y) * 0.8
+			ship.global_position.y = wall_top - ship_radius - 2
+		else:
+			# Hit from bottom
+			velocity.y = abs(velocity.y) * 0.8
+			ship.global_position.y = wall_bottom + ship_radius + 2
+		
+		ship.set("velocity", velocity)
+
+func challenge_completed() -> void:
+	# Get the game manager and signal completion
+	var game_manager = get_node("/root/GameManager")
+	if game_manager and game_manager.has_method("on_challenge_completed"):
+		game_manager.on_challenge_completed()
 
 func try_grab_or_release(dt: float) -> void:
 	if piece.get("held"):
@@ -120,11 +210,11 @@ func reset_state() -> void:
 	ship.global_position = Vector2(W*0.5, H*0.75)
 	ship.rotation = -PI/2.0
 	ship.set("velocity", Vector2.ZERO)
-	piece.global_position = Vector2(W*0.3, H*0.35)
+	piece.global_position = Vector2(W*0.2, H*0.35)
 	piece.rotation = 0.0
 	piece.set("velocity", Vector2.ZERO)
 	piece.set("held", false)
-	slot.global_position = Vector2(W*0.7, H*0.35)
+	slot.global_position = Vector2(W*0.8, H*0.35)
 	slot.rotation = 0.0
 	slot.set("snapped", false)
 	release_cooldown = 0.0
@@ -140,12 +230,6 @@ func wrap_position(n: Node2D) -> void:
 	if p.y < -30.0: p.y = H + 30.0
 	elif p.y > H + 30.0: p.y = -30.0
 	n.global_position = p
-
-func challenge_completed() -> void:
-	# Get the game manager and signal completion
-	var game_manager = get_node("/root/GameManager")
-	if game_manager and game_manager.has_method("on_challenge_completed"):
-		game_manager.on_challenge_completed()
 
 func update_hud() -> void:
 	var vel: Vector2 = ship.get("velocity")
