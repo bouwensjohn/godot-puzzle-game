@@ -140,12 +140,11 @@ func thrust(on: bool) -> void:
 	if _engine and _engine.stream:
 		if on:
 			_engine.volume_db = -12.0  # Full throttle volume
+			if not _engine.playing:
+				_engine.play()
 		else:
-			_engine.volume_db = -25.0  # Idle volume (audible but quiet)
-		
-		# Keep engine running continuously
-		if not _engine.playing:
-			_engine.play()
+			# Stop engine sound completely when not throttling
+			_engine.stop()
 
 func triumph() -> void:
 	if _triumph and _triumph.stream:

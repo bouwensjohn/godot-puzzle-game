@@ -42,9 +42,9 @@ func _ready() -> void:
 	add_child(background)
 	# Move wall after background to render on top
 	move_child(wall, get_child_count())
-	add_child(ship)
 	add_child(piece)
 	add_child(slot)
+	add_child(ship)
 	add_child(hud)
 	
 	# Add visual debug for wall
@@ -182,6 +182,17 @@ func handle_wall_collision() -> void:
 			ship.global_position.y = wall_bottom + ship_radius + 2
 		
 		ship.set("velocity", velocity)
+		
+		# Drop the piece if it's being held when hitting the wall
+		if piece.get("held"):
+			piece.set("held", false)
+			release_cooldown = 0.3
+			var fwd: Vector2 = Vector2.RIGHT.rotated(ship.rotation)
+			var nudge: Vector2 = fwd * 50.0 * (1.0/60.0) * 60.0
+			var piece_velocity: Vector2 = velocity + nudge
+			piece.set("velocity", piece_velocity)
+			var am := get_node_or_null("/root/AudioManager")
+			if am: am.call("release")
 
 func challenge_completed() -> void:
 	# Get the game manager and signal completion

@@ -4,7 +4,8 @@ signal splash_finished
 
 func _ready() -> void:
 	# Timer signal is already connected in the scene file
-	pass
+	$VersionLabel.add_theme_font_size_override("font_size", 32)
+	$CopyrightLabel.add_theme_font_size_override("font_size", 32)
 
 func _on_timer_timeout() -> void:
 	# Emit signal to indicate splash screen is done

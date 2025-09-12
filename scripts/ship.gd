@@ -24,13 +24,35 @@ func update_move(delta: float) -> void:
 	# Calculate skidding for visual effects only
 	calculate_skidding()
 	
-	# damping and integrate
-	velocity *= 0.995
+	# Apply angular drag based on movement direction vs forklift orientation
+	apply_angular_drag()
+	
+	# integrate
 	position += velocity * delta
 	
 	# audio hook
 	var am := get_node_or_null("/root/AudioManager")
 	if am: am.thrust(thrusting)
+
+func apply_angular_drag() -> void:
+	if velocity.length() < 10.0:  # Skip drag for very slow movement
+		return
+	
+	var forward_dir := Vector2.RIGHT.rotated(rotation)
+	var movement_dir := velocity.normalized()
+	
+	# Calculate angle between forklift orientation and movement direction
+	var angle_diff := forward_dir.angle_to(movement_dir)
+	
+	# Convert angle to 0-1 range where 0 = aligned, 1 = perpendicular
+	var perpendicular_factor: float = abs(sin(angle_diff))
+	
+	# Apply drag proportional to how perpendicular the movement is
+	var base_drag: float = 0.995  # Normal drag when moving forward/backward (includes general damping)
+	var max_drag: float = 0.975   # Maximum drag when moving sideways (angular + general)
+	var drag_factor: float = lerp(base_drag, max_drag, perpendicular_factor)
+	
+	velocity *= drag_factor
 
 func calculate_skidding() -> void:
 	var speed := velocity.length()
