@@ -18,7 +18,7 @@ Successfully implemented a second challenge that activates after completing the 
 
 ### 3. Collision Detection
 - **Method**: AABB (Axis-Aligned Bounding Box) collision detection
-- **Ship Radius**: 30 pixels approximate collision boundary
+- **Forklift Radius**: 30 pixels approximate collision boundary
 - **Bounce Physics**: Velocity reversal with 0.8 energy loss factor
 - **Anti-Sticking**: Automatic push-away mechanism to prevent wall clipping
 
@@ -53,13 +53,13 @@ Second Challenge (with wall)
 ### Collision Algorithm:
 ```gdscript
 # AABB collision detection
-if (ship_pos.x + ship_radius > wall_left and 
-    ship_pos.x - ship_radius < wall_right and
-    ship_pos.y + ship_radius > wall_top and
-    ship_pos.y - ship_radius < wall_bottom):
+if (forklift_pos.x + forklift_radius > wall_left and 
+    forklift_pos.x - forklift_radius < wall_right and
+    forklift_pos.y + forklift_radius > wall_top and
+    forklift_pos.y - forklift_radius < wall_bottom):
     # Determine collision side and reverse appropriate velocity component
     # Apply energy loss (0.8 multiplier)
-    # Push ship away from wall
+    # Push forklift away from wall
 ```
 
 ## Testing

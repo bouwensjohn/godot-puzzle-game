@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=3 uid="uid://bx7yhw85vhk3y"]
+[gd_scene load_steps=5 format=3 uid="uid://bx7yhw85vhk3y"]
 
 [ext_resource type="Script" path="res://scripts/challenge_two.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/wall_visual.gd" id="2_wall_visual"]
+[ext_resource type="Script" path="res://scripts/wall.gd" id="3_wall"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(20, 640)
@@ -19,6 +20,7 @@ script = ExtResource("1")
 volume_db = -25.0
 
 [node name="Wall" type="StaticBody2D" parent="."]
+script = ExtResource("3_wall")
 position = Vector2(1000, 448)
 
 [node name="WallCollision" type="CollisionShape2D" parent="Wall"]

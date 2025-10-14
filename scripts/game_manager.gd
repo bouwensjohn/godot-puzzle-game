@@ -19,7 +19,7 @@ func _ready() -> void:
 	show_splash_screen()
 
 func setup_challenges() -> void:
-	# Setup different ship-based challenges
+	# Setup different forklift-based challenges
 	# For now, we have the basic puzzle challenge
 	challenges = [
 		{
@@ -31,6 +31,11 @@ func setup_challenges() -> void:
 			"name": "Wall Challenge",
 			"scene": preload("res://scenes/ChallengeTwo.tscn"),
 			"description": "Navigate around the wall to complete the puzzle"
+		},
+		{
+			"name": "Maze Challenge",
+			"scene": preload("res://scenes/ChallengeThree.tscn"),
+			"description": "Navigate a maze of walls to solve the puzzle"
 		}
 	]
 
@@ -110,3 +115,21 @@ func get_current_challenge_info() -> Dictionary:
 	if current_challenge_index < challenges.size():
 		return challenges[current_challenge_index]
 	return {}
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		var code = event.keycode
+		var idx := -1
+		if code >= KEY_1 and code <= KEY_9:
+			idx = code - KEY_1
+		elif code == KEY_0:
+			idx = 9
+		if idx >= 0 and idx < challenges.size():
+			jump_to_challenge(idx)
+
+func jump_to_challenge(n: int) -> void:
+	is_transitioning = false
+	if challenge_completed_timer and is_instance_valid(challenge_completed_timer):
+		challenge_completed_timer.stop()
+	current_challenge_index = n
+	load_current_challenge()

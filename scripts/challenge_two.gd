@@ -7,19 +7,14 @@ var GRAB_RADIUS: float
 var SNAP_RADIUS: float
 var ANGLE_TOL: float
 
-var ship: Node2D
+var forklift: Node2D
 var piece: Node2D
 var slot: Node2D
 var hud: CanvasLayer
-var wall: StaticBody2D
+var walls: Array
 
 var release_cooldown := 0.0
 var elapsed_time := 0.0
-
-# Wall visual properties
-var wall_position: Vector2
-var wall_size: Vector2 = Vector2(20, 640)
-var wall_color: Color = Color(0.4, 0.3, 0.2, 1.0)
 
 func _ready() -> void:
 	# Initialize configuration values
@@ -31,30 +26,35 @@ func _ready() -> void:
 	
 	# Instance scenes
 	var background = load("res://scenes/CaveBackground.tscn").instantiate()
-	ship = load("res://scenes/Ship.tscn").instantiate()
+	forklift = load("res://scenes/Forklift.tscn").instantiate()
 	piece = load("res://scenes/Piece.tscn").instantiate()
 	slot = load("res://scenes/Slot.tscn").instantiate()
 	hud = load("res://scenes/HUD.tscn").instantiate()
-	# Get wall reference from scene first
-	wall = $Wall
-	wall_position = wall.global_position
+	# Collect walls by group for rendering/collision
+	walls = get_tree().get_nodes_in_group("walls")
 	
 	add_child(background)
-	# Move wall after background to render on top
-	move_child(wall, get_child_count())
+	# Move walls after background so they're above background but below newly added nodes
+	for w in walls:
+		move_child(w, get_child_count())
 	add_child(piece)
 	add_child(slot)
-	add_child(ship)
+	add_child(forklift)
 	add_child(hud)
 	
-	# Add visual debug for wall
-	print("Wall position: ", wall.global_position)
-	print("Wall collision shape size: ", wall.get_node("WallCollision").shape.size)
+	# Add visual debug for walls
+	for w in walls:
+		var cs: CollisionShape2D = w.get_node_or_null("WallCollision") as CollisionShape2D
+		var sz: Vector2 = Vector2.ZERO
+		if cs and cs.shape is RectangleShape2D:
+			sz = (cs.shape as RectangleShape2D).size
+		print("Wall position: ", (w as Node2D).global_position)
+		print("Wall collision shape size: ", sz)
 	
 	# Initial state (mirrors HTML prototype)
-	ship.global_position = Vector2(W*0.5, H*0.75)
-	ship.rotation = -PI/2.0
-	ship.set("velocity", Vector2.ZERO)
+	forklift.global_position = Vector2(W*0.5, H*0.75)
+	forklift.rotation = -PI/2.0
+	forklift.set("velocity", Vector2.ZERO)
 	piece.global_position = Vector2(W*0.2, H*0.35)
 	piece.rotation = 0.0
 	piece.set("velocity", Vector2.ZERO)
@@ -65,15 +65,11 @@ func _ready() -> void:
 	update_hud()
 
 func _draw() -> void:
-	# Draw the wall visual directly on top of everything
-	var wall_rect = Rect2(wall_position.x - wall_size.x * 0.5, wall_position.y - wall_size.y * 0.5, wall_size.x, wall_size.y)
-	draw_rect(wall_rect, wall_color)
-	# Draw border for better visibility
-	draw_rect(wall_rect, Color.BLACK, false, 3.0)
-	
-	# Draw debug text to confirm wall is being drawn
+	# Draw debug text to confirm walls are present
 	var font = ThemeDB.fallback_font
-	draw_string(font, Vector2(wall_position.x - 30, wall_position.y - 350), "WALL", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color.WHITE)
+	for w in walls:
+		var p := (w as Node2D).global_position
+		draw_string(font, Vector2(p.x - 30, p.y - 350), "WALL", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color.WHITE)
 
 func _process(_delta: float) -> void:
 	queue_redraw()
@@ -99,17 +95,17 @@ func _physics_process(delta: float) -> void:
 		release_cooldown -= delta
 	
 	# Movement with collision detection
-	(ship as Node).call("update_move", delta)
+	(forklift as Node).call("update_move", delta)
 	handle_wall_collision()
-	wrap_position(ship)
+	wrap_position(forklift)
 	
 	# Held / free movement
 	if piece.get("held"):
-		piece.rotation = ship.rotation
+		piece.rotation = forklift.rotation
 		var hold_dist: float = 28.0 + float(piece.get("size")) * 0.5
-		var fwd: Vector2 = Vector2.RIGHT.rotated(ship.rotation)
-		piece.global_position = ship.global_position + fwd * hold_dist
-		piece.set("velocity", ship.get("velocity"))
+		var fwd: Vector2 = Vector2.RIGHT.rotated(forklift.rotation)
+		piece.global_position = forklift.global_position + fwd * hold_dist
+		piece.set("velocity", forklift.get("velocity"))
 	elif not slot.get("snapped"):
 		(piece as Node).call("update_free", delta)
 		wrap_position(piece)
@@ -134,65 +130,54 @@ func _physics_process(delta: float) -> void:
 			challenge_completed()
 	update_hud()
 
+
 func handle_wall_collision() -> void:
-	# Check if ship collides with wall
-	var ship_pos = ship.global_position
-	var wall_pos = wall.global_position
-	var wall_size = Vector2(20, H * 0.5)
-	
-	# Simple AABB collision detection
-	var ship_radius = 30.0  # Approximate ship radius
-	var wall_left = wall_pos.x - wall_size.x * 0.5
-	var wall_right = wall_pos.x + wall_size.x * 0.5
-	var wall_top = wall_pos.y - wall_size.y * 0.5
-	var wall_bottom = wall_pos.y + wall_size.y * 0.5
-	
-	if (ship_pos.x + ship_radius > wall_left and 
-		ship_pos.x - ship_radius < wall_right and
-		ship_pos.y + ship_radius > wall_top and
-		ship_pos.y - ship_radius < wall_bottom):
-		
-		# Collision detected - bounce the ship
-		var velocity = ship.get("velocity") as Vector2
-		
-		# Determine which side of the wall we hit based on overlap
-		var overlap_left = (ship_pos.x + ship_radius) - wall_left
-		var overlap_right = wall_right - (ship_pos.x - ship_radius)
-		var overlap_top = (ship_pos.y + ship_radius) - wall_top
-		var overlap_bottom = wall_bottom - (ship_pos.y - ship_radius)
-		
-		# Find the smallest overlap to determine collision side
-		var min_overlap = min(min(overlap_left, overlap_right), min(overlap_top, overlap_bottom))
-		
-		if min_overlap == overlap_left:
-			# Hit from left side
-			velocity.x = -abs(velocity.x) * 0.8
-			ship.global_position.x = wall_left - ship_radius - 2
-		elif min_overlap == overlap_right:
-			# Hit from right side
-			velocity.x = abs(velocity.x) * 0.8
-			ship.global_position.x = wall_right + ship_radius + 2
-		elif min_overlap == overlap_top:
-			# Hit from top
-			velocity.y = -abs(velocity.y) * 0.8
-			ship.global_position.y = wall_top - ship_radius - 2
-		else:
-			# Hit from bottom
-			velocity.y = abs(velocity.y) * 0.8
-			ship.global_position.y = wall_bottom + ship_radius + 2
-		
-		ship.set("velocity", velocity)
-		
-		# Drop the piece if it's being held when hitting the wall
-		if piece.get("held"):
-			piece.set("held", false)
-			release_cooldown = 0.3
-			var fwd: Vector2 = Vector2.RIGHT.rotated(ship.rotation)
-			var nudge: Vector2 = fwd * 50.0 * (1.0/60.0) * 60.0
-			var piece_velocity: Vector2 = velocity + nudge
-			piece.set("velocity", piece_velocity)
-			var am := get_node_or_null("/root/AudioManager")
-			if am: am.call("release")
+	# Check collisions against all walls
+	var forklift_pos = forklift.global_position
+	var forklift_radius = 30.0  # Approximate forklift radius
+	for w in walls:
+		var wall_pos: Vector2 = (w as Node2D).global_position
+		var ws: Vector2 = ((w as Node).get("size") as Vector2)
+		var wall_left = wall_pos.x - ws.x * 0.5
+		var wall_right = wall_pos.x + ws.x * 0.5
+		var wall_top = wall_pos.y - ws.y * 0.5
+		var wall_bottom = wall_pos.y + ws.y * 0.5
+		if (forklift_pos.x + forklift_radius > wall_left and 
+			forklift_pos.x - forklift_radius < wall_right and
+			forklift_pos.y + forklift_radius > wall_top and
+			forklift_pos.y - forklift_radius < wall_bottom):
+			# Collision detected - bounce the forklift
+			var velocity = forklift.get("velocity") as Vector2
+			var overlap_left = (forklift_pos.x + forklift_radius) - wall_left
+			var overlap_right = wall_right - (forklift_pos.x - forklift_radius)
+			var overlap_top = (forklift_pos.y + forklift_radius) - wall_top
+			var overlap_bottom = wall_bottom - (forklift_pos.y - forklift_radius)
+			var min_overlap = min(min(overlap_left, overlap_right), min(overlap_top, overlap_bottom))
+			if min_overlap == overlap_left:
+				velocity.x = -abs(velocity.x) * 0.8
+				forklift.global_position.x = wall_left - forklift_radius - 2
+			elif min_overlap == overlap_right:
+				velocity.x = abs(velocity.x) * 0.8
+				forklift.global_position.x = wall_right + forklift_radius + 2
+			elif min_overlap == overlap_top:
+				velocity.y = -abs(velocity.y) * 0.8
+				forklift.global_position.y = wall_top - forklift_radius - 2
+			else:
+				velocity.y = abs(velocity.y) * 0.8
+				forklift.global_position.y = wall_bottom + forklift_radius + 2
+			forklift.set("velocity", velocity)
+			# Drop held piece on collision
+			if piece.get("held"):
+				piece.set("held", false)
+				release_cooldown = 0.3
+				var fwd: Vector2 = Vector2.RIGHT.rotated(forklift.rotation)
+				var nudge: Vector2 = fwd * 50.0 * (1.0/60.0) * 60.0
+				var piece_velocity: Vector2 = velocity + nudge
+				piece.set("velocity", piece_velocity)
+				var am := get_node_or_null("/root/AudioManager")
+				if am: am.call("release")
+			# Only handle one wall per frame
+			return
 
 func challenge_completed() -> void:
 	# Get the game manager and signal completion
@@ -205,22 +190,22 @@ func try_grab_or_release(dt: float) -> void:
 		# release
 		piece.set("held", false)
 		release_cooldown = 0.3
-		var fwd: Vector2 = Vector2.RIGHT.rotated(ship.rotation)
+		var fwd: Vector2 = Vector2.RIGHT.rotated(forklift.rotation)
 		var nudge: Vector2 = fwd * 50.0 * dt * 60.0
-		var v: Vector2 = (ship.get("velocity") as Vector2) + nudge
+		var v: Vector2 = (forklift.get("velocity") as Vector2) + nudge
 		piece.set("velocity", v)
 		var am := get_node_or_null("/root/AudioManager")
 		if am: am.call("release")
 	elif not slot.get("snapped") and release_cooldown <= 0.0:
-		var nose: Vector2 = ((ship as Node).call("nose_global_position") as Vector2)
+		var nose: Vector2 = ((forklift as Node).call("nose_global_position") as Vector2)
 		if nose.distance_to(piece.global_position) < GRAB_RADIUS:
 			piece.set("held", true)
 	update_hud()
 
 func reset_state() -> void:
-	ship.global_position = Vector2(W*0.5, H*0.75)
-	ship.rotation = -PI/2.0
-	ship.set("velocity", Vector2.ZERO)
+	forklift.global_position = Vector2(W*0.5, H*0.75)
+	forklift.rotation = -PI/2.0
+	forklift.set("velocity", Vector2.ZERO)
 	piece.global_position = Vector2(W*0.2, H*0.35)
 	piece.rotation = 0.0
 	piece.set("velocity", Vector2.ZERO)
@@ -243,7 +228,7 @@ func wrap_position(n: Node2D) -> void:
 	n.global_position = p
 
 func update_hud() -> void:
-	var vel: Vector2 = ship.get("velocity")
+	var vel: Vector2 = forklift.get("velocity")
 	(hud as Node).call("set_velocity", vel)
 	(hud as Node).call("set_hold", piece.get("held"))
 	var sm := get_node_or_null("/root/SaveManager")

@@ -19,8 +19,8 @@ This is a scaffold to port the HTML/JS prototype into Godot 4.x.
 5) Set `scenes/Main.tscn` as the Main Scene.
 
 ## Files
-- scenes/Main.tscn: Root scene that spawns Ship, Piece, Slot, HUD.
-- scenes/Ship.tscn: Ship node with `scripts/ship.gd`.
+- scenes/Main.tscn: Root scene that spawns Forklift, Piece, Slot, HUD.
+- scenes/Forklift.tscn: Forklift node with `scripts/forklift.gd`.
 - scenes/Piece.tscn: Movable piece with `scripts/piece.gd`.
 - scenes/Slot.tscn: Slot to snap into with `scripts/slot.gd`.
 - scenes/HUD.tscn: Canvas-layer HUD with `scripts/hud.gd`.
