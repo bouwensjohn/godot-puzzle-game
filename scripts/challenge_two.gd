@@ -12,6 +12,10 @@ var piece: Node2D
 var slot: Node2D
 var hud: CanvasLayer
 var walls: Array
+var camera: Camera2D
+var WORLD_W: float
+var WORLD_H: float
+const WORLD_SCALE := 2.0
 
 var release_cooldown := 0.0
 var elapsed_time := 0.0
@@ -23,9 +27,12 @@ func _ready() -> void:
 	GRAB_RADIUS = GameConfig.GRAB_RADIUS
 	SNAP_RADIUS = GameConfig.SNAP_RADIUS
 	ANGLE_TOL = GameConfig.ANGLE_TOL
+	WORLD_W = W * WORLD_SCALE
+	WORLD_H = H * WORLD_SCALE
 	
 	# Instance scenes
 	var background = load("res://scenes/CaveBackground.tscn").instantiate()
+	(background as Node).set("scale_factor", WORLD_SCALE)
 	forklift = load("res://scenes/Forklift.tscn").instantiate()
 	piece = load("res://scenes/Piece.tscn").instantiate()
 	slot = load("res://scenes/Slot.tscn").instantiate()
@@ -41,6 +48,14 @@ func _ready() -> void:
 	add_child(slot)
 	add_child(forklift)
 	add_child(hud)
+	# Camera setup: follow forklift with deadzone, clamp to 2x world
+	camera = Camera2D.new()
+	camera.enabled = true
+	camera.limit_left = 0
+	camera.limit_top = 0
+	camera.limit_right = int(WORLD_W)
+	camera.limit_bottom = int(WORLD_H)
+	add_child(camera)
 	
 	# Add visual debug for walls
 	for w in walls:
@@ -62,6 +77,9 @@ func _ready() -> void:
 	slot.global_position = Vector2(W*0.8, H*0.35)
 	slot.rotation = 0.0
 	slot.set("snapped", false)
+	# Initialize camera
+	camera.position = forklift.global_position
+	update_camera()
 	update_hud()
 
 func _draw() -> void:
@@ -97,7 +115,8 @@ func _physics_process(delta: float) -> void:
 	# Movement with collision detection
 	(forklift as Node).call("update_move", delta)
 	handle_wall_collision()
-	wrap_position(forklift)
+	clamp_to_world(forklift, 30.0)
+	update_camera()
 	
 	# Held / free movement
 	if piece.get("held"):
@@ -108,7 +127,7 @@ func _physics_process(delta: float) -> void:
 		piece.set("velocity", forklift.get("velocity"))
 	elif not slot.get("snapped"):
 		(piece as Node).call("update_free", delta)
-		wrap_position(piece)
+		clamp_to_world(piece, 20.0)
 	
 	# Snap check
 	if not piece.get("held") and not slot.get("snapped"):
@@ -129,6 +148,37 @@ func _physics_process(delta: float) -> void:
 			# Notify game manager that challenge is complete
 			challenge_completed()
 	update_hud()
+
+func clamp_to_world(n: Node2D, radius: float = 30.0) -> void:
+	var p := n.global_position
+	p.x = clamp(p.x, radius, WORLD_W - radius)
+	p.y = clamp(p.y, radius, WORLD_H - radius)
+	n.global_position = p
+
+func update_camera() -> void:
+	if camera == null:
+		return
+	var viewport_w := W
+	var viewport_h := H
+	var margin_x := viewport_w * 0.25
+	var margin_y := viewport_h * 0.25
+	var cam_pos := camera.position
+	var left := cam_pos.x - viewport_w * 0.5
+	var right := cam_pos.x + viewport_w * 0.5
+	var top := cam_pos.y - viewport_h * 0.5
+	var bottom := cam_pos.y + viewport_h * 0.5
+	var fp := forklift.global_position
+	if fp.x > right - margin_x:
+		cam_pos.x = fp.x + margin_x - viewport_w * 0.5
+	elif fp.x < left + margin_x:
+		cam_pos.x = fp.x - margin_x + viewport_w * 0.5
+	if fp.y > bottom - margin_y:
+		cam_pos.y = fp.y + margin_y - viewport_h * 0.5
+	elif fp.y < top + margin_y:
+		cam_pos.y = fp.y - margin_y + viewport_h * 0.5
+	cam_pos.x = clamp(cam_pos.x, viewport_w * 0.5, WORLD_W - viewport_w * 0.5)
+	cam_pos.y = clamp(cam_pos.y, viewport_h * 0.5, WORLD_H - viewport_h * 0.5)
+	camera.position = cam_pos
 
 
 func handle_wall_collision() -> void:

@@ -1,6 +1,7 @@
 extends Node2D
 
 @export var background_texture: Texture2D
+@export var scale_factor: float = 1.0
 
 func _ready() -> void:
 	# Try to load cave background image
@@ -12,11 +13,11 @@ func _ready() -> void:
 		print("No cave background image found, using procedural background")
 
 func _draw() -> void:
-	var width = GameConfig.SCREEN_WIDTH
-	var height = GameConfig.SCREEN_HEIGHT
+	var width = GameConfig.SCREEN_WIDTH * scale_factor
+	var height = GameConfig.SCREEN_HEIGHT * scale_factor
 	
 	if background_texture:
-		# Draw the background image scaled to fit the screen
+		# Draw the background image scaled to the world size
 		draw_texture_rect(background_texture, Rect2(0, 0, width, height), false)
 	else:
 		# Fallback to procedural background
@@ -98,7 +99,7 @@ func draw_mineral_veins(width: float, height: float) -> void:
 	for path in vein_paths:
 		for i in range(path.size() - 1):
 			draw_line(path[i], path[i + 1], vein_color, 3.0 * GameConfig.UI_SCALE)
-	
+		
 	# Small crystal formations
 	var crystal_positions = [
 		Vector2(width * 0.15, height * 0.6),
