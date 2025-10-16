@@ -76,7 +76,7 @@ func _ready() -> void:
 	camera.limit_bottom = int(WORLD_H)
 	add_child(camera)
 	
-	forklift.global_position = Vector2(W*0.8, H*1.4)
+	forklift.global_position = Vector2(W*0.8, H*0.6)
 	forklift.rotation = -PI/2.0
 	forklift.set("velocity", Vector2.ZERO)
 	piece.global_position = Vector2(W*0.15, H*0.2)
