@@ -40,15 +40,17 @@ func _ready() -> void:
 	var wall_scene: PackedScene = load("res://scenes/Wall.tscn") as PackedScene
 	var maze_segments := [
 		# Vertical columns with wide central/top gaps to keep corridors open
-		{ "pos": Vector2(450, 260), "size": Vector2(20, 200) },
-		{ "pos": Vector2(450, 550), "size": Vector2(20, 200) },
-		{ "pos": Vector2(900, 360), "size": Vector2(20, 400) },
-		{ "pos": Vector2(700, 540), "size": Vector2(20, 180) },
+		{ "pos": Vector2(430, 250), "size": Vector2(40, 200) },
+		{ "pos": Vector2(450, 550), "size": Vector2(40, 200) },
+		{ "pos": Vector2(900, 360), "size": Vector2(40, 400) },
+		{ "pos": Vector2(700, 1290), "size": Vector2(40, 180) },
+		{ "pos": Vector2(1400, 540), "size": Vector2(40, 580) },
 		# Horizontal segments shaping a path while keeping wide passages
-		{ "pos": Vector2(570, 360), "size": Vector2(200, 20) },
-		{ "pos": Vector2(1020, 660), "size": Vector2(400, 20) },
-		{ "pos": Vector2(300, 440), "size": Vector2(220, 20) },
-		{ "pos": Vector2(700, 790), "size": Vector2(200, 20) }
+		{ "pos": Vector2(570, 360), "size": Vector2(200, 40) },
+		{ "pos": Vector2(1020, 660), "size": Vector2(400, 40) },
+		{ "pos": Vector2(300, 440), "size": Vector2(220, 40) },
+		{ "pos": Vector2(1200, 990), "size": Vector2(500, 40) },
+		{ "pos": Vector2(700, 790), "size": Vector2(200, 40) }
 	]
 	walls = [] as Array[StaticBody2D]
 	for seg in maze_segments:
@@ -74,7 +76,7 @@ func _ready() -> void:
 	camera.limit_bottom = int(WORLD_H)
 	add_child(camera)
 	
-	forklift.global_position = Vector2(W*0.1, H*0.8)
+	forklift.global_position = Vector2(W*0.8, H*1.4)
 	forklift.rotation = -PI/2.0
 	forklift.set("velocity", Vector2.ZERO)
 	piece.global_position = Vector2(W*0.15, H*0.2)
