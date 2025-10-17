@@ -1,7 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3 uid="uid://bpcrlh6uu184w"]
 
-[ext_resource type="Script" path="res://scripts/wall.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/wall_visual.gd" id="2"]
+[ext_resource type="Script" uid="uid://es8pqixdoril" path="res://scripts/wall.gd" id="1"]
+[ext_resource type="Script" uid="uid://crk3jdqaej7b8" path="res://scripts/wall_visual.gd" id="2"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(20, 640)

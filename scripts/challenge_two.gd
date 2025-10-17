@@ -67,7 +67,7 @@ func _ready() -> void:
 		print("Wall collision shape size: ", sz)
 	
 	# Initial state (mirrors HTML prototype)
-	forklift.global_position = Vector2(W*0.5, H*0.75)
+	forklift.global_position = Vector2(W*1.1, H*0.75)
 	forklift.rotation = -PI/2.0
 	forklift.set("velocity", Vector2.ZERO)
 	piece.global_position = Vector2(W*0.2, H*0.35)
@@ -87,7 +87,7 @@ func _draw() -> void:
 	var font = ThemeDB.fallback_font
 	for w in walls:
 		var p := (w as Node2D).global_position
-		draw_string(font, Vector2(p.x - 30, p.y - 350), "WALL", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color.WHITE)
+		# draw_string(font, Vector2(p.x - 30, p.y - 350), "WALL", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color.WHITE)
 
 func _process(_delta: float) -> void:
 	queue_redraw()

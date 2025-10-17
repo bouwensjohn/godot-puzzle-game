@@ -1,8 +1,8 @@
 extends Node2D
 @export var variation_strength: float = 0.7
 @export var speckle_count: int = 120
-@export var speckle_min_radius: float = 8.0
-@export var speckle_max_radius: float = 20.0
+@export var speckle_min_radius: float = 19.0
+@export var speckle_max_radius: float = 34.0
 @export var seed: int = 12345
 var _speckles: Array[Dictionary] = []
 var _last_size: Vector2 = Vector2.ZERO

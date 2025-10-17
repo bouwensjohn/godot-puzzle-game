@@ -95,7 +95,7 @@ func _draw() -> void:
 	var font = ThemeDB.fallback_font
 	for w: StaticBody2D in walls:
 		var p: Vector2 = w.global_position
-		draw_string(font, Vector2(p.x - 30, p.y - 350), "WALL", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color.WHITE)
+		# draw_string(font, Vector2(p.x - 30, p.y - 350), "WALL", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color.WHITE)
 
 func _process(_delta: float) -> void:
 	queue_redraw()
