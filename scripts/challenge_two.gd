@@ -20,6 +20,25 @@ const WORLD_SCALE := 2.0
 var release_cooldown := 0.0
 var elapsed_time := 0.0
 
+func init_state() -> void:
+	# Initial state (mirrors HTML prototype)
+	forklift.global_position = GameConfig.FORKLIFT_INIT_POS
+	forklift.rotation = -PI/2.0
+	forklift.set("velocity", Vector2.ZERO)
+	piece.global_position = Vector2(W*0.2, H*0.35)
+	piece.rotation = 0.0
+	piece.set("velocity", Vector2.ZERO)
+	piece.set("held", false)
+	slot.global_position = Vector2(W*0.8, H*0.35)
+	slot.rotation = 0.0
+	slot.set("snapped", false)
+	release_cooldown = 0.0
+	elapsed_time = 0.0
+	# Initialize camera
+	camera.position = forklift.global_position
+	update_camera()
+	update_hud()
+
 func _ready() -> void:
 	# Initialize configuration values
 	W = GameConfig.SCREEN_WIDTH
@@ -44,8 +63,8 @@ func _ready() -> void:
 	# Move walls after background so they're above background but below newly added nodes
 	for w in walls:
 		move_child(w, get_child_count())
-	add_child(piece)
 	add_child(slot)
+	add_child(piece)
 	add_child(forklift)
 	add_child(hud)
 	# Camera setup: follow forklift with deadzone, clamp to 2x world
@@ -67,20 +86,7 @@ func _ready() -> void:
 		print("Wall collision shape size: ", sz)
 	
 	# Initial state (mirrors HTML prototype)
-	forklift.global_position = Vector2(W*1.1, H*0.75)
-	forklift.rotation = -PI/2.0
-	forklift.set("velocity", Vector2.ZERO)
-	piece.global_position = Vector2(W*0.2, H*0.35)
-	piece.rotation = 0.0
-	piece.set("velocity", Vector2.ZERO)
-	piece.set("held", false)
-	slot.global_position = Vector2(W*0.8, H*0.35)
-	slot.rotation = 0.0
-	slot.set("snapped", false)
-	# Initialize camera
-	camera.position = forklift.global_position
-	update_camera()
-	update_hud()
+	init_state()
 
 func _draw() -> void:
 	# Draw debug text to confirm walls are present
@@ -253,19 +259,7 @@ func try_grab_or_release(dt: float) -> void:
 	update_hud()
 
 func reset_state() -> void:
-	forklift.global_position = Vector2(W*0.5, H*0.75)
-	forklift.rotation = -PI/2.0
-	forklift.set("velocity", Vector2.ZERO)
-	piece.global_position = Vector2(W*0.2, H*0.35)
-	piece.rotation = 0.0
-	piece.set("velocity", Vector2.ZERO)
-	piece.set("held", false)
-	slot.global_position = Vector2(W*0.8, H*0.35)
-	slot.rotation = 0.0
-	slot.set("snapped", false)
-	release_cooldown = 0.0
-	elapsed_time = 0.0
-	update_hud()
+	init_state()
 	var sm := get_node_or_null("/root/SaveManager")
 	if sm: sm.call("record_attempt", false, 0.0)
 
@@ -279,6 +273,7 @@ func wrap_position(n: Node2D) -> void:
 
 func update_hud() -> void:
 	var vel: Vector2 = forklift.get("velocity")
+	(hud as Node).call("set_position", forklift.global_position)
 	(hud as Node).call("set_velocity", vel)
 	(hud as Node).call("set_hold", piece.get("held"))
 	var sm := get_node_or_null("/root/SaveManager")

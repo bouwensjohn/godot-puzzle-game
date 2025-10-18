@@ -15,7 +15,8 @@ var camera: Camera2D
 var WORLD_W: float
 var WORLD_H: float
 const WORLD_SCALE := 2.0
-var unlock_spot_center: Vector2 = Vector2(450, 380)
+var unlock_spot_center: Vector2 = Vector2.ZERO
+var bumper: Node2D
 
 var release_cooldown := 0.0
 var elapsed_time := 0.0
@@ -25,14 +26,22 @@ func init_state() -> void:
 	forklift.global_position = GameConfig.FORKLIFT_INIT_POS
 	forklift.rotation = -PI/2.0
 	forklift.set("velocity", Vector2.ZERO)
-	piece.global_position = Vector2(W*0.17, H*0.25)
+	piece.global_position = Vector2(W*0.25, H*0.30)
 	piece.rotation = 0.0
 	piece.set("velocity", Vector2.ZERO)
 	piece.set("held", false)
-	slot.global_position = Vector2(W*0.9, H*0.25)
+	# Place slot far to the right so forklift cannot reach it directly
+	slot.global_position = Vector2(W*1.70, H*0.35)
 	slot.rotation = 0.0
 	slot.set("snapped", false)
 	slot.set("locked", true)
+	# Place bumper near the slot to enable a ricochet path
+	if bumper:
+		bumper.global_position = slot.global_position + Vector2(-140, 0)
+		bumper.set("radius", 50.0)
+		bumper.set("boost", 2.0)
+	# Unlock spot lies between bumper and slot
+	unlock_spot_center = slot.global_position + Vector2(-70, -40)
 	release_cooldown = 0.0
 	elapsed_time = 0.0
 	update_hud()
@@ -58,21 +67,29 @@ func _ready() -> void:
 	
 	add_child(background)
 	
+	# Build a larger maze, including segments beyond the base screen (x>2000, y>1280)
 	var wall_scene: PackedScene = load("res://scenes/Wall.tscn") as PackedScene
 	var maze_segments := [
-		# Vertical columns with wide central/top gaps to keep corridors open
-		{ "pos": Vector2(430, 250), "size": Vector2(40, 200) },
-		{ "pos": Vector2(450, 550), "size": Vector2(40, 200) },
-		{ "pos": Vector2(900, 360), "size": Vector2(40, 400) },
-		{ "pos": Vector2(700, 1290), "size": Vector2(40, 180) },
-		{ "pos": Vector2(1400, 540), "size": Vector2(40, 580) },
-		{ "pos": Vector2(2400, 600), "size": Vector2(40, 880) },
-		# Horizontal segments shaping a path while keeping wide passages
-		{ "pos": Vector2(570, 360), "size": Vector2(200, 40) },
-		{ "pos": Vector2(1020, 660), "size": Vector2(400, 40) },
-		{ "pos": Vector2(300, 440), "size": Vector2(220, 40) },
-		{ "pos": Vector2(1200, 990), "size": Vector2(500, 40) },
-		{ "pos": Vector2(700, 790), "size": Vector2(200, 40) }
+		# Left/middle area
+		{ "pos": Vector2(600, 500), "size": Vector2(300, 40) },
+		{ "pos": Vector2(900, 800), "size": Vector2(40, 300) },
+		{ "pos": Vector2(1200, 450), "size": Vector2(280, 40) },
+		{ "pos": Vector2(1500, 900), "size": Vector2(40, 360) },
+		# Right of x=2000
+		{ "pos": Vector2(2200, 400), "size": Vector2(400, 40) },
+		{ "pos": Vector2(2500, 800), "size": Vector2(40, 500) },
+		{ "pos": Vector2(2800, 600), "size": Vector2(400, 40) },
+		{ "pos": Vector2(3100, 950), "size": Vector2(40, 500) },
+		# Below y=1280
+		{ "pos": Vector2(600, 1500), "size": Vector2(600, 40) },
+		{ "pos": Vector2(1400, 1600), "size": Vector2(40, 400) },
+		{ "pos": Vector2(2100, 1700), "size": Vector2(600, 40) },
+		{ "pos": Vector2(2800, 1800), "size": Vector2(40, 400) },
+		# Enclose the slot area so forklift cannot reach directly (but piece can still be tossed over walls)
+		{ "pos": Vector2(W*1.65, H*0.35), "size": Vector2(40, 240) },
+		{ "pos": Vector2(W*1.75, H*0.35), "size": Vector2(40, 240) },
+		{ "pos": Vector2(W*1.70, H*0.25), "size": Vector2(220, 40) },
+		{ "pos": Vector2(W*1.70, H*0.45), "size": Vector2(220, 40) }
 	]
 	walls = [] as Array[StaticBody2D]
 	for seg in maze_segments:
@@ -84,11 +101,12 @@ func _ready() -> void:
 	for w: StaticBody2D in walls:
 		move_child(w, get_child_count())
 	
+	# Add core nodes on top of walls
 	add_child(slot)
 	add_child(piece)
 	add_child(forklift)
 	add_child(hud)
-
+	
 	# Camera setup: follow forklift with deadzone, clamp to 2x world
 	camera = Camera2D.new()
 	camera.enabled = true
@@ -98,13 +116,15 @@ func _ready() -> void:
 	camera.limit_bottom = int(WORLD_H)
 	add_child(camera)
 	
+	# Create the reusable bounce bumper
+	var BumperScript = load("res://scripts/bounce_bumper.gd")
+	bumper = BumperScript.new()
+	add_child(bumper)
+	
 	init_state()
 
 func _draw() -> void:
-	var font = ThemeDB.fallback_font
-	for w: StaticBody2D in walls:
-		var p: Vector2 = w.global_position
-		# draw_string(font, Vector2(p.x - 30, p.y - 350), "WALL", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color.WHITE)
+	# Draw the unlock spot in lock/normal color depending on state
 	draw_circle(unlock_spot_center, GameConfig.SNAP_RADIUS, (GameConfig.SLOT_LOCK_COLOR if slot.get("locked") else GameConfig.SLOT_NORMAL_ARC_COLOR))
 
 func _process(_delta: float) -> void:
@@ -140,6 +160,9 @@ func _physics_process(delta: float) -> void:
 	elif not slot.get("snapped"):
 		(piece as Node).call("update_free", delta)
 		clamp_to_world(piece, 20.0)
+		# Attempt bounce against bumper when free
+		if bumper:
+			bumper.call("bounce_piece", piece)
 	# Unlock check: piece must pass over the spot
 	if slot.get("locked") and piece.global_position.distance_to(unlock_spot_center) < GameConfig.SNAP_RADIUS:
 		slot.set("locked", false)
@@ -255,14 +278,6 @@ func reset_state() -> void:
 	init_state()
 	var sm := get_node_or_null("/root/SaveManager")
 	if sm: sm.call("record_attempt", false, 0.0)
-
-func wrap_position(n: Node2D) -> void:
-	var p := n.global_position
-	if p.x < -30.0: p.x = W + 30.0
-	elif p.x > W + 30.0: p.x = -30.0
-	if p.y < -30.0: p.y = H + 30.0
-	elif p.y > H + 30.0: p.y = -30.0
-	n.global_position = p
 
 func challenge_completed() -> void:
 	var game_manager = get_node("/root/GameManager")

@@ -36,6 +36,11 @@ func setup_challenges() -> void:
 			"name": "Maze Challenge",
 			"scene": preload("res://scenes/ChallengeThree.tscn"),
 			"description": "Navigate a maze of walls to solve the puzzle"
+		},
+		{
+			"name": "Ricochet Challenge",
+			"scene": preload("res://scenes/ChallengeFour.tscn"),
+			"description": "Use the bounce bumper to unlock and ricochet the piece into the slot"
 		}
 	]
 

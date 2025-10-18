@@ -35,7 +35,7 @@ func create_parallax_background() -> void:
 
 	var far_ts := TileSet.new()
 	far_ts.tile_size = Vector2i(128, 128)
-	var far_tex := load("res://textures/pushy_ice_tile_04_128_a80.png") as Texture2D
+	var far_tex := load("res://textures/pushy_ice_tile_01_128_a80.png") as Texture2D
 	if far_tex:
 		var fatlas := TileSetAtlasSource.new()
 		fatlas.texture = far_tex
@@ -59,7 +59,7 @@ func create_parallax_background() -> void:
 
 	var mid_map := TileMap.new()
 	mid_map.name = "ParallaxMidMap"
-	mid_map.set("modulate", Color(0.8, 0.8, 0.9, 0.4))
+	mid_map.set("modulate", Color(0.8, 0.8, 0.9, 0.2))
 	mid_map.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var mid_mat := CanvasItemMaterial.new()
 	mid_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MIX
@@ -68,7 +68,7 @@ func create_parallax_background() -> void:
 
 	var mid_ts := TileSet.new()
 	mid_ts.tile_size = Vector2i(128, 128)
-	var blotch_tex := load("res://textures/pushy_ice_tile_04_128_a80.png") as Texture2D
+	var blotch_tex := load("res://textures/pushy_ice_tile_05_128_a80.png") as Texture2D
 	if blotch_tex:
 		var atlas := TileSetAtlasSource.new()
 		atlas.texture = blotch_tex
@@ -89,7 +89,7 @@ func create_ice_floor() -> void:
 	var tilemap := TileMap.new()
 	tilemap.name = "TileMapIce"
 	tilemap.set("z_index", 1)
-	tilemap.set("modulate", Color(1, 1, 1, 0.78))
+	tilemap.set("modulate", Color(1, 1, 1, 0.58))
 	tilemap.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var shader := Shader.new()
 	shader.code = "shader_type canvas_item;\nrender_mode blend_mix, unshaded;\nvoid fragment(){\n\tCOLOR *= texture(TEXTURE, UV);\n}\n"
@@ -101,9 +101,9 @@ func create_ice_floor() -> void:
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(128, 128)
 	var textures := [
-		"res://textures/pushy_ice_tile_01_128_a80.png",
-		"res://textures/pushy_ice_tile_02_128_a80.png",
-		"res://textures/pushy_ice_tile_03_128_a80.png",
+		"res://textures/pushy_ice_tile_06_128_a80.png",
+		"res://textures/pushy_ice_tile_07_128_a80.png",
+		"res://textures/pushy_ice_tile_08_128_a80.png",
 	]
 	var sources: Array[int] = []
 	for p in textures:
