@@ -59,7 +59,7 @@ func create_parallax_background() -> void:
 
 	var mid_map := TileMap.new()
 	mid_map.name = "ParallaxMidMap"
-	mid_map.set("modulate", Color(0.8, 0.8, 0.9, 0.2))
+	mid_map.set("modulate", Color(0.8, 0.8, 0.9, 0.4))
 	mid_map.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var mid_mat := CanvasItemMaterial.new()
 	mid_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MIX
@@ -68,7 +68,7 @@ func create_parallax_background() -> void:
 
 	var mid_ts := TileSet.new()
 	mid_ts.tile_size = Vector2i(128, 128)
-	var blotch_tex := load("res://textures/pushy_ice_tile_05_128_a80.png") as Texture2D
+	var blotch_tex := load("res://textures/pushy_ice_tile_11_128_a80.png") as Texture2D
 	if blotch_tex:
 		var atlas := TileSetAtlasSource.new()
 		atlas.texture = blotch_tex

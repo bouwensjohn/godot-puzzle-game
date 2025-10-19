@@ -20,6 +20,7 @@ var bumper: Node2D
 
 var release_cooldown := 0.0
 var elapsed_time := 0.0
+var relock_timer := 0.0
 
 func init_state() -> void:
 	# Initial state (mirrors HTML prototype)
@@ -39,10 +40,12 @@ func init_state() -> void:
 	if bumper:
 		bumper.global_position = slot.global_position + Vector2(-140, 0)
 		bumper.set("radius", 50.0)
-		bumper.set("boost", 2.0)
+		bumper.set("boost", 1.0)
+		bumper.set("angle_mix", 1)
 	# Unlock spot lies between bumper and slot
-	unlock_spot_center = slot.global_position + Vector2(-70, -40)
+	unlock_spot_center = slot.global_position + Vector2(-70, -60)
 	release_cooldown = 0.0
+	relock_timer = 0.0
 	elapsed_time = 0.0
 	update_hud()
 	# Initialize camera after positions
@@ -166,10 +169,23 @@ func _physics_process(delta: float) -> void:
 	# Unlock check: piece must pass over the spot
 	if slot.get("locked") and piece.global_position.distance_to(unlock_spot_center) < GameConfig.SNAP_RADIUS:
 		slot.set("locked", false)
+		relock_timer = 2.0
+	# Auto-relock after timeout if not snapped
+	if not slot.get("snapped") and not slot.get("locked"):
+		if relock_timer > 0.0:
+			relock_timer -= delta
+			if relock_timer <= 0.0:
+				slot.set("locked", true)
 	if not piece.get("held") and not slot.get("snapped"):
-		var near: bool = piece.global_position.distance_to(slot.global_position) < SNAP_RADIUS
-		var ang_diff: float = abs(wrapf(piece.rotation - slot.rotation, -PI, PI))
-		if near and ang_diff < ANGLE_TOL and not slot.get("locked"):
+		var near: bool = piece.global_position.distance_to(slot.global_position) < SNAP_RADIUS * 2.0
+		var vel: Vector2 = piece.get("velocity")
+		var to_slot: Vector2 = slot.global_position - piece.global_position
+		var ang_diff: float = 0.0
+		if vel.length() > 5.0 and to_slot.length() > 0.001:
+			ang_diff = abs(vel.angle_to(to_slot))
+		else:
+			ang_diff = 0.0
+		if near and not slot.get("locked"):
 			slot.set("snapped", true)
 			piece.set("velocity", Vector2.ZERO)
 			piece.global_position = slot.global_position

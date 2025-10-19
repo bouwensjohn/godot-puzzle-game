@@ -1,7 +1,8 @@
 extends Node2D
 
 @export var radius: float = 40.0
-@export var boost: float = 2.0
+@export var boost: float = 1.0
+@export var angle_mix: float = 0.6
 @export var color: Color = Color8(255, 90, 90, 220)
 
 func _draw() -> void:
@@ -19,12 +20,19 @@ func bounce_piece(piece: Node2D) -> bool:
 	var piece_radius: float = float(piece.get("size")) * 0.5
 	if to_piece.length() <= (radius + piece_radius):
 		var v: Vector2 = piece.get("velocity")
+		var v_len: float = v.length()
 		var n: Vector2 = to_piece
 		if n.length() < 0.0001:
 			n = Vector2.RIGHT
 		n = n.normalized()
 		var v_reflect: Vector2 = v - 2.0 * v.dot(n) * n
-		piece.set("velocity", v_reflect * boost)
+		var v_blend: Vector2 = v * (1.0 - angle_mix) + v_reflect * angle_mix
+		var out_dir: Vector2 = v_blend
+		if out_dir.length() < 0.0001:
+			out_dir = n
+		else:
+			out_dir = out_dir.normalized()
+		piece.set("velocity", out_dir * v_len * boost)
 		piece.global_position = global_position + n * (radius + piece_radius + 1.0)
 		var am := get_node_or_null("/root/AudioManager")
 		if am: am.call("click")

@@ -17,7 +17,7 @@ const UI_SCALE := SCALE_FACTOR_X  # Use X scale for UI elements
 # Game constants
 const GRAB_RADIUS := 36.0
 const SNAP_RADIUS := 28.0
-const ANGLE_TOL := deg_to_rad(20.0)
+const ANGLE_TOL := deg_to_rad(30.0)
 const SLOT_LOCK_COLOR := Color8(195, 42, 42, 230)
 const SLOT_NORMAL_ARC_COLOR := Color(0.57, 0.71, 0.58, 0.5)
 const FORKLIFT_INIT_POS := Vector2(SCREEN_WIDTH * 0.15, SCREEN_HEIGHT * 0.60)
