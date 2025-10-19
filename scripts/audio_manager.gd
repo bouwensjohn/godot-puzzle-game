@@ -4,10 +4,12 @@ var _click: AudioStreamPlayer
 var _release: AudioStreamPlayer
 var _engine: AudioStreamPlayer
 var _triumph: AudioStreamPlayer
+var _bgm: AudioStreamPlayer
 
 func _ready() -> void:
 	_refresh_nodes()
 	_create_beep_sounds()
+	_setup_bgm()
 
 func _refresh_nodes() -> void:
 	# Try to resolve players in the running scene. Safe if not found.
@@ -149,3 +151,20 @@ func thrust(on: bool) -> void:
 func triumph() -> void:
 	if _triumph and _triumph.stream:
 		_triumph.play()
+
+func _setup_bgm() -> void:
+	if not _bgm:
+		_bgm = AudioStreamPlayer.new()
+		add_child(_bgm)
+	var bgm_stream: AudioStream = load("res://sounds/background_music.ogg") as AudioStream
+	if bgm_stream:
+		_bgm.stream = bgm_stream
+		_bgm.volume_db = -12.0
+		if not _bgm.is_connected("finished", Callable(self, "_on_bgm_finished")):
+			_bgm.finished.connect(Callable(self, "_on_bgm_finished"))
+		if not _bgm.playing:
+			_bgm.play()
+
+func _on_bgm_finished() -> void:
+	if _bgm and _bgm.stream:
+		_bgm.play()
