@@ -83,6 +83,10 @@ func _ready() -> void:
 		{ "pos": Vector2(2500, 800), "size": Vector2(40, 500) },
 		{ "pos": Vector2(2800, 600), "size": Vector2(400, 40) },
 		{ "pos": Vector2(3100, 950), "size": Vector2(40, 500) },
+		{ "pos": Vector2(3000, 240), "size": Vector2(40, 300) },
+		{ "pos": Vector2(3060, 230), "size": Vector2(40, 400) },
+		{ "pos": Vector2(3130, 250), "size": Vector2(40, 140) },
+		{ "pos": Vector2(3240, 250), "size": Vector2(40, 200) },
 		# Below y=1280
 		{ "pos": Vector2(600, 1500), "size": Vector2(600, 40) },
 		{ "pos": Vector2(1400, 1600), "size": Vector2(40, 400) },
@@ -177,7 +181,7 @@ func _physics_process(delta: float) -> void:
 			if relock_timer <= 0.0:
 				slot.set("locked", true)
 	if not piece.get("held") and not slot.get("snapped"):
-		var near: bool = piece.global_position.distance_to(slot.global_position) < SNAP_RADIUS * 2.0
+		var near: bool = piece.global_position.distance_to(slot.global_position) < SNAP_RADIUS
 		var vel: Vector2 = piece.get("velocity")
 		var to_slot: Vector2 = slot.global_position - piece.global_position
 		var ang_diff: float = 0.0

@@ -3,7 +3,7 @@ extends Node2D
 @export var radius: float = 40.0
 @export var boost: float = 1.0
 @export var angle_mix: float = 0.6
-@export var color: Color = Color8(255, 90, 90, 220)
+@export var color: Color = Color8(255, 255, 255, 150)
 
 func _draw() -> void:
 	# core disk and ring for visibility

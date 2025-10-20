@@ -1,5 +1,5 @@
 extends Node2D
-@export var variation_strength: float = 0.7
+@export var variation_strength: float = 0.4
 @export var speckle_count: int = 120
 @export var speckle_min_radius: float = 19.0
 @export var speckle_max_radius: float = 34.0
@@ -12,12 +12,13 @@ func _draw():
 	var p := get_parent()
 	var s: Vector2 = p.get("size") if p else Vector2(20, 640)
 	var c: Color = p.get("color") if p else Color(0.4, 0.3, 0.2, 1.0)
+	var c2: Color = Color(1, 1, 1, 1.0)
 	var rect = Rect2(-s.x * 0.5, -s.y * 0.5, s.x, s.y)
 	draw_rect(rect, c)
 	_ensure_speckles()
 	for sp in _speckles:
 		var delta: float = sp["delta"]
-		var col: Color = c.lightened(delta) if delta >= 0.0 else c.darkened(-delta)
+		var col: Color = c2.lightened(delta) if delta >= 0.0 else c2.darkened(-delta)
 		col.a = sp["alpha"]
 		draw_circle(sp["pos"], sp["r"], col)
 
