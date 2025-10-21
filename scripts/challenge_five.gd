@@ -19,17 +19,41 @@ const WORLD_SCALE := 2.0
 var release_cooldown := 0.0
 var elapsed_time := 0.0
 
+var _slot_cell: Vector2i = Vector2i.ZERO
+
+# ------------- MAZE PARAMS (tweak safely) -------------
+const CELL_SIZE := 160.0              # corridor span; forklift radius ~30 → roomy corridors
+const THICK_MIN := 30.0               # min wall thickness
+const THICK_MAX := 56.0               # max wall thickness
+const OUTER_THICK := 60.0             # frame thickness
+const RNG_SEED := 31415               # change for a different layout keeping same rules
+const CH5_WALL_COLOR := Color(0.26, 0.48, 0.72, 1.0)
+
+# Maze area (centered in the world); leave margins for camera movement
+var _maze_left: float
+var _maze_top: float
+var _maze_cols: int
+var _maze_rows: int
+var _rng := RandomNumberGenerator.new()
+
 func init_state() -> void:
 	forklift.global_position = GameConfig.FORKLIFT_INIT_POS
 	forklift.rotation = -PI/2.0
 	forklift.set("velocity", Vector2.ZERO)
-	piece.global_position = Vector2(W*0.22, H*0.35)
+
+	# Start the piece near the maze entrance (left edge mid)
+	var ent_cell := Vector2i(0, _maze_rows / 2)
+	var ent_center := _cell_center(ent_cell)
+	piece.global_position = ent_center + Vector2(-CELL_SIZE * 0.6, 0)
 	piece.rotation = 0.0
 	piece.set("velocity", Vector2.ZERO)
 	piece.set("held", false)
-	slot.global_position = Vector2(W*1.70, H*0.40)
+
+	# Place the slot at the chosen cell (computed during build)
+	slot.global_position = _cell_center(_slot_cell)
 	slot.rotation = 0.0
 	slot.set("snapped", false)
+
 	release_cooldown = 0.0
 	elapsed_time = 0.0
 	camera.position = forklift.global_position
@@ -44,50 +68,32 @@ func _ready() -> void:
 	ANGLE_TOL = GameConfig.ANGLE_TOL
 	WORLD_W = W * WORLD_SCALE
 	WORLD_H = H * WORLD_SCALE
+
+	_rng.seed = RNG_SEED
+
 	var background = load("res://scenes/CaveBackground.tscn").instantiate()
 	(background as Node).set("scale_factor", WORLD_SCALE)
+
 	forklift = load("res://scenes/Forklift.tscn").instantiate()
 	piece = load("res://scenes/Piece.tscn").instantiate()
 	slot = load("res://scenes/Slot.tscn").instantiate()
 	hud = load("res://scenes/HUD.tscn").instantiate()
+
 	add_child(background)
-	var wall_scene: PackedScene = load("res://scenes/Wall.tscn") as PackedScene
-	var barrier_x := W * 1.00
-	var cw := 240.0
-	var x_start := W * 0.30
-	var x_left := W * 0.85
-	var x_right := W * 1.20
-	var x_exit := W * 1.55
-	var y_entrance := WORLD_H * 0.70
-	var y_mid := WORLD_H * 0.52
-	var y_exit := WORLD_H * 0.66
-	var maze_segments := [
-		{ "pos": Vector2(barrier_x, WORLD_H * 0.25), "size": Vector2(40, WORLD_H * 0.60) },
-		{ "pos": Vector2(barrier_x, WORLD_H * 0.80), "size": Vector2(40, WORLD_H * 0.50) },
-		{ "pos": Vector2((x_start + x_left) * 0.5, y_entrance - cw*0.5 - 20), "size": Vector2(abs(x_left - x_start), 40) },
-		{ "pos": Vector2((x_start + x_left) * 0.5, y_entrance + cw*0.5 + 20), "size": Vector2(abs(x_left - x_start), 40) },
-		{ "pos": Vector2(x_left - cw*0.5 - 20, (y_entrance + y_mid) * 0.5), "size": Vector2(40, abs(y_entrance - y_mid)) },
-		{ "pos": Vector2(x_left + cw*0.5 + 20, (y_entrance + y_mid) * 0.5), "size": Vector2(40, abs(y_entrance - y_mid)) },
-		{ "pos": Vector2((x_left + x_right) * 0.5, y_mid - cw*0.5 - 20), "size": Vector2(abs(x_right - x_left), 40) },
-		{ "pos": Vector2((x_left + x_right) * 0.5, y_mid + cw*0.5 + 20), "size": Vector2(abs(x_right - x_left), 40) },
-		{ "pos": Vector2(x_right - cw*0.5 - 20, (y_mid + y_exit) * 0.5), "size": Vector2(40, abs(y_mid - y_exit)) },
-		{ "pos": Vector2(x_right + cw*0.5 + 20, (y_mid + y_exit) * 0.5), "size": Vector2(40, abs(y_mid - y_exit)) },
-		{ "pos": Vector2((x_right + x_exit) * 0.5, y_exit - cw*0.5 - 20), "size": Vector2(abs(x_exit - x_right), 40) },
-		{ "pos": Vector2((x_right + x_exit) * 0.5, y_exit + cw*0.5 + 20), "size": Vector2(abs(x_exit - x_right), 40) }
-	]
-	walls = [] as Array[StaticBody2D]
-	for seg in maze_segments:
-		var w: StaticBody2D = wall_scene.instantiate() as StaticBody2D
-		w.set("size", seg["size"])
-		w.global_position = seg["pos"]
-		add_child(w)
-		walls.append(w)
+
+	# ---------- Build a proper maze (walls) ----------
+	_plan_maze_area()
+	_build_maze_walls()
+
+	# Usual node order (walls behind interactive items)
 	for w: StaticBody2D in walls:
 		move_child(w, get_child_count())
+
 	add_child(slot)
 	add_child(piece)
 	add_child(forklift)
 	add_child(hud)
+
 	camera = Camera2D.new()
 	camera.enabled = true
 	camera.limit_left = 0
@@ -95,6 +101,7 @@ func _ready() -> void:
 	camera.limit_right = int(WORLD_W)
 	camera.limit_bottom = int(WORLD_H)
 	add_child(camera)
+
 	init_state()
 
 func _process(_delta: float) -> void:
@@ -117,10 +124,13 @@ func _physics_process(delta: float) -> void:
 	elapsed_time += delta
 	if release_cooldown > 0.0:
 		release_cooldown -= delta
+
 	(forklift as Node).call("update_move", delta)
+
 	handle_wall_collision()
 	clamp_to_world(forklift, 30.0)
 	update_camera()
+
 	if piece.get("held"):
 		piece.rotation = forklift.rotation
 		var hold_dist: float = 28.0 + float(piece.get("size")) * 0.5
@@ -128,11 +138,22 @@ func _physics_process(delta: float) -> void:
 		piece.global_position = forklift.global_position + fwd * hold_dist
 		piece.set("velocity", forklift.get("velocity"))
 	elif not slot.get("snapped"):
+		# Integrate + collide piece against walls when free
 		(piece as Node).call("update_free", delta)
+
+		var pradius: float = float(piece.get("size")) * 0.5   # same size you use for hold_dist
+		var pvel: Vector2 = piece.get("velocity") as Vector2
+
+		# resolve collisions (do two passes to reduce corner tunneling)
+		pvel = _collide_circle_with_walls(piece, pradius, pvel, 0.4)
+		pvel = _collide_circle_with_walls(piece, pradius, pvel, 0.4)
+
+		piece.set("velocity", pvel)
 		clamp_to_world(piece, 20.0)
+
 	if not piece.get("held") and not slot.get("snapped"):
 		var near: bool = piece.global_position.distance_to(slot.global_position) < SNAP_RADIUS
-		var ang_diff: float = abs( wrapf(piece.rotation - slot.rotation, -PI, PI) )
+		var ang_diff: float = abs(wrapf(piece.rotation - slot.rotation, -PI, PI))
 		if near and ang_diff < ANGLE_TOL:
 			slot.set("snapped", true)
 			piece.set("velocity", Vector2.ZERO)
@@ -145,6 +166,7 @@ func _physics_process(delta: float) -> void:
 				sm.call("record_attempt", true, elapsed_time)
 				update_hud()
 			challenge_completed()
+
 	update_hud()
 
 func clamp_to_world(n: Node2D, radius: float = 30.0) -> void:
@@ -192,6 +214,7 @@ func handle_wall_collision() -> void:
 			forklift_pos.x - forklift_radius < wall_right and
 			forklift_pos.y + forklift_radius > wall_top and
 			forklift_pos.y - forklift_radius < wall_bottom):
+
 			var velocity = forklift.get("velocity") as Vector2
 			var overlap_left = (forklift_pos.x + forklift_radius) - wall_left
 			var overlap_right = wall_right - (forklift_pos.x - forklift_radius)
@@ -221,6 +244,50 @@ func handle_wall_collision() -> void:
 				var am := get_node_or_null("/root/AudioManager")
 				if am: am.call("release")
 			return
+			
+# Resolve a circular body (node+radius) against all walls; returns new velocity.
+func _collide_circle_with_walls(n: Node2D, radius: float, vel: Vector2, bounce: float = 0.4) -> Vector2:
+	var pos := n.global_position
+	var collided := false
+
+	for w: StaticBody2D in walls:
+		var wall_pos: Vector2 = w.global_position
+		var ws: Vector2 = (w.get("size") as Vector2)
+		var wall_left = wall_pos.x - ws.x * 0.5
+		var wall_right = wall_pos.x + ws.x * 0.5
+		var wall_top = wall_pos.y - ws.y * 0.5
+		var wall_bottom = wall_pos.y + ws.y * 0.5
+
+		if (pos.x + radius > wall_left and 
+			pos.x - radius < wall_right and
+			pos.y + radius > wall_top and
+			pos.y - radius < wall_bottom):
+
+			var overlap_left   = (pos.x + radius) - wall_left
+			var overlap_right  = wall_right - (pos.x - radius)
+			var overlap_top    = (pos.y + radius) - wall_top
+			var overlap_bottom = wall_bottom - (pos.y - radius)
+			var min_overlap = min(min(overlap_left, overlap_right), min(overlap_top, overlap_bottom))
+
+			if min_overlap == overlap_left:
+				vel.x = -abs(vel.x) * bounce
+				pos.x = wall_left - radius - 2
+			elif min_overlap == overlap_right:
+				vel.x = abs(vel.x) * bounce
+				pos.x = wall_right + radius + 2
+			elif min_overlap == overlap_top:
+				vel.y = -abs(vel.y) * bounce
+				pos.y = wall_top - radius - 2
+			else:
+				vel.y = abs(vel.y) * bounce
+				pos.y = wall_bottom + radius + 2
+
+			collided = true
+
+	# apply the corrected position
+	if collided:
+		n.global_position = pos
+	return vel
 
 func try_grab_or_release(dt: float) -> void:
 	if piece.get("held"):
@@ -257,3 +324,207 @@ func update_hud() -> void:
 	if sm:
 		var stats: Dictionary = sm.call("get_stats")
 		(hud as Node).call("set_stats", stats)
+
+# ===================== Maze builder =====================
+
+func _plan_maze_area() -> void:
+	# Center a rectangular maze in the world with margins
+	var margin_x := W * 0.25
+	var margin_y := H * 0.20
+	var usable_w := WORLD_W - 2.0 * margin_x
+	var usable_h := WORLD_H - 2.0 * margin_y
+
+	_maze_cols = max(5, int(floor(usable_w / CELL_SIZE)))
+	_maze_rows = max(5, int(floor(usable_h / CELL_SIZE)))
+
+	var total_w := _maze_cols * CELL_SIZE
+	var total_h := _maze_rows * CELL_SIZE
+
+	_maze_left = (WORLD_W - total_w) * 0.5
+	_maze_top  = (WORLD_H - total_h) * 0.5
+
+func _cell_center(c: Vector2i) -> Vector2:
+	return Vector2(_maze_left + (c.x + 0.5) * CELL_SIZE, _maze_top + (c.y + 0.5) * CELL_SIZE)
+
+func _build_maze_walls() -> void:
+	# Depth-first carve of a perfect maze
+	var visited := []
+	visited.resize(_maze_cols)
+	for x in range(_maze_cols):
+		visited[x] = []
+		visited[x].resize(_maze_rows)
+		for y in range(_maze_rows):
+			visited[x][y] = false
+
+	# walls: true means wall present between cells
+	var vwall := []   # vertical walls: size (_maze_cols + 1) x _maze_rows
+	var hwall := []   # horizontal walls: size _maze_cols x (_maze_rows + 1)
+	vwall.resize(_maze_cols + 1)
+	for x in range(_maze_cols + 1):
+		vwall[x] = []
+		vwall[x].resize(_maze_rows)
+		for y in range(_maze_rows):
+			vwall[x][y] = true
+	hwall.resize(_maze_cols)
+	for x in range(_maze_cols):
+		hwall[x] = []
+		hwall[x].resize(_maze_rows + 1)
+		for y in range(_maze_rows + 1):
+			hwall[x][y] = true
+
+	var start: Vector2i = Vector2i(0, _maze_rows / 2)
+	_dfs_carve(start, visited, vwall, hwall)
+	vwall[0][start.y] = false   # open entrance on far left
+
+	### var target := Vector2i(_maze_cols / 2, _maze_rows / 2)
+
+	# Choose a harder slot location (far from entrance, prefer dead-ends, avoid straight row)
+	_slot_cell = _pick_farthest_cell(start, vwall, hwall, true)
+
+	_dfs_carve(start, visited, vwall, hwall)
+
+	# (Optional) Bias a corridor toward the center to guarantee easier route
+	### _carve_tunnel_toward(target, vwall, hwall)
+
+	# Open the entrance (left boundary at start.y)
+	vwall[0][start.y] = false
+
+	# Convert intact walls → Wall.tscn segments with varied thickness
+	var wall_scene: PackedScene = load("res://scenes/Wall.tscn") as PackedScene
+	walls = [] as Array[StaticBody2D]
+
+	# Outer frame (keep closed except the entrance we opened)
+	for y in range(_maze_rows):
+		if vwall[0][y]: _spawn_vwall(wall_scene, 0, y, OUTER_THICK)
+		if vwall[_maze_cols][y]: _spawn_vwall(wall_scene, _maze_cols, y, OUTER_THICK)
+	for x in range(_maze_cols):
+		if hwall[x][0]: _spawn_hwall(wall_scene, x, 0, OUTER_THICK)
+		if hwall[x][_maze_rows]: _spawn_hwall(wall_scene, x, _maze_rows, OUTER_THICK)
+
+	# Inner walls
+	for x in range(1, _maze_cols):
+		for y in range(_maze_rows):
+			if vwall[x][y]:
+				_spawn_vwall(wall_scene, x, y, _rng.randf_range(THICK_MIN, THICK_MAX))
+	for x in range(_maze_cols):
+		for y in range(1, _maze_rows):
+			if hwall[x][y]:
+				_spawn_hwall(wall_scene, x, y, _rng.randf_range(THICK_MIN, THICK_MAX))
+
+func _dfs_carve(c: Vector2i, visited, vwall, hwall) -> void:
+	visited[c.x][c.y] = true
+	var dirs := [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
+	dirs.shuffle()
+
+	for d in dirs:
+		var nx : int = c.x + d.x
+		var ny : int = c.y + d.y
+		if nx < 0 or ny < 0 or nx >= _maze_cols or ny >= _maze_rows:
+			continue
+		if visited[nx][ny]:
+			continue
+		# remove wall between c and (nx,ny)
+		if d.x == 1:
+			vwall[c.x + 1][c.y] = false
+		elif d.x == -1:
+			vwall[c.x][c.y] = false
+		elif d.y == 1:
+			hwall[c.x][c.y + 1] = false
+		else:
+			hwall[c.x][c.y] = false
+		_dfs_carve(Vector2i(nx, ny), visited, vwall, hwall)
+	
+func _spawn_vwall(wall_scene: PackedScene, grid_x: int, grid_y: int, thick: float) -> void:
+	var w: StaticBody2D = wall_scene.instantiate() as StaticBody2D
+	var size := Vector2(thick, CELL_SIZE + 0.001) # +eps to avoid visual seams
+	w.set("size", size)
+	w.set("color", CH5_WALL_COLOR)
+	var x := _maze_left + grid_x * CELL_SIZE
+	var y := _maze_top + (grid_y + 0.5) * CELL_SIZE
+	w.global_position = Vector2(x, y)
+	add_child(w)
+	walls.append(w)
+
+func _spawn_hwall(wall_scene: PackedScene, grid_x: int, grid_y: int, thick: float) -> void:
+	var w: StaticBody2D = wall_scene.instantiate() as StaticBody2D
+	var size := Vector2(CELL_SIZE + 0.001, thick)
+	w.set("size", size)
+	w.set("color", CH5_WALL_COLOR)
+	var x := _maze_left + (grid_x + 0.5) * CELL_SIZE
+	var y := _maze_top + grid_y * CELL_SIZE
+	w.global_position = Vector2(x, y)
+	add_child(w)
+	walls.append(w)
+
+func _neighbors_open(c: Vector2i, vwall: Array, hwall: Array) -> int:
+	var open := 0
+	if c.x + 1 < _maze_cols and vwall[c.x + 1][c.y] == false: open += 1
+	if c.x - 1 >= 0        and vwall[c.x][c.y] == false:      open += 1
+	if c.y + 1 < _maze_rows and hwall[c.x][c.y + 1] == false: open += 1
+	if c.y - 1 >= 0         and hwall[c.x][c.y] == false:     open += 1
+	return open
+
+func _manhattan(a: Vector2i, b: Vector2i) -> int:
+	return abs(a.x - b.x) + abs(a.y - b.y)
+
+func _pick_farthest_cell(start: Vector2i, vwall: Array, hwall: Array, avoid_straight: bool) -> Vector2i:
+	# BFS across carved maze graph
+	var dist := {}                         # Dictionary: Vector2i -> int
+	var q: Array[Vector2i] = []
+	dist[start] = 0
+	q.push_back(start)
+	var cells: Array[Vector2i] = [start]
+
+	while q.size() > 0:
+		var c: Vector2i = q.pop_front()
+		var dcur: int = dist[c]
+
+		# Right
+		if c.x + 1 < _maze_cols and vwall[c.x + 1][c.y] == false:
+			var nr := Vector2i(c.x + 1, c.y)
+			if not dist.has(nr):
+				dist[nr] = dcur + 1
+				q.push_back(nr)
+				cells.push_back(nr)
+		# Left
+		if c.x - 1 >= 0 and vwall[c.x][c.y] == false:
+			var nl := Vector2i(c.x - 1, c.y)
+			if not dist.has(nl):
+				dist[nl] = dcur + 1
+				q.push_back(nl)
+				cells.push_back(nl)
+		# Down
+		if c.y + 1 < _maze_rows and hwall[c.x][c.y + 1] == false:
+			var nd := Vector2i(c.x, c.y + 1)
+			if not dist.has(nd):
+				dist[nd] = dcur + 1
+				q.push_back(nd)
+				cells.push_back(nd)
+		# Up
+		if c.y - 1 >= 0 and hwall[c.x][c.y] == false:
+			var nu := Vector2i(c.x, c.y - 1)
+			if not dist.has(nu):
+				dist[nu] = dcur + 1
+				q.push_back(nu)
+				cells.push_back(nu)
+
+	# Score cells: far from start (primary), prefer dead-ends, penalize same entrance row / center column
+	var center := Vector2i(_maze_cols / 2, _maze_rows / 2)
+	var best := start
+	var best_score := -1_000_000
+
+	for c in cells:
+		var d: int = dist[c]
+		var opens: int = _neighbors_open(c, vwall, hwall)
+		var away_center: int = _manhattan(c, center)
+		var penalty := 0
+		if avoid_straight:
+			if c.y == start.y: penalty += 3         # avoid a straight row from entrance
+			if abs(c.x - center.x) <= 1: penalty += 2
+
+		var score: int = d * 100 + (30 if opens == 1 else 0) + away_center * 2 - penalty * 50
+		if score > best_score:
+			best_score = score
+			best = c
+
+	return best
