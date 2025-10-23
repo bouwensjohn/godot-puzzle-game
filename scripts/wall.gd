@@ -4,7 +4,7 @@ var _size: Vector2 = Vector2(40, 640)
 @export var size: Vector2:
 	set = set_size, get = get_size
 
-@export var color: Color = Color(0.4, 0.3, 0.2, 1.0)
+@export var color: Color = Color(0.6, 0.4, 0.2, 0.3)
 
 func _ready() -> void:
 	add_to_group("walls")

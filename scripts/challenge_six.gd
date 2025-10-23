@@ -26,6 +26,11 @@ var hook: Node2D
 var spring_anchor: Vector2
 var hook_pivot: Vector2
 
+var room_cx_f: float
+var room_cy_f: float
+var room_w_f: float
+var room_h_f: float
+
 func _spawn_wall(wall_scene: PackedScene, size: Vector2, pos: Vector2) -> void:
 	var w: StaticBody2D = wall_scene.instantiate() as StaticBody2D
 	w.set("size", size)
@@ -41,7 +46,7 @@ func init_state() -> void:
 	piece.rotation = 0.0
 	piece.set("velocity", Vector2.ZERO)
 	piece.set("held", false)
-	slot.global_position = Vector2(W*1.60, H*0.35)
+	slot.global_position = Vector2(room_cx_f, room_cy_f)
 	slot.rotation = 0.0
 	slot.set("snapped", false)
 	release_cooldown = 0.0
@@ -85,18 +90,30 @@ func _ready() -> void:
 
 	# --- Room and door setup ---
 	var post_w: float = 40.0
-	var gap_h: float = 160.0
+	var gap_h: float = 200.0
 	var gap_y: float = H * 0.60
-	var room_w: float = 520.0
-	var room_h: float = 520.0
-	var room_thick: float = 56.0
-	var room_cx: float = W * 1.60
+	# Compute a much wider room: move door line (barrier) left and extend room to world right limit
+	var desired_room_w: float = min(W * 1.20, 1400.0)
+	var desired_room_h: float = min(H * 1.10, 920.0)
+	var room_thick: float = 64.0
 	var room_cy: float = H * 0.50
-	var room_left: float = room_cx - room_w * 0.5
-	var room_right: float = room_cx + room_w * 0.5
+	# Place the door (west wall) further left to maximize interior width
+	var barrier_x: float = clamp(W * 0.92, 40.0, WORLD_W - 600.0)
+	var room_right_lim: float = WORLD_W - 40.0
+	var room_w: float = clamp(room_right_lim - barrier_x, 720.0, desired_room_w)
+	var room_cx: float = barrier_x + room_w * 0.5
+	# Height within world bounds
+	var max_room_h: float = min((WORLD_H - room_cy - 40.0) * 2.0, (room_cy - 40.0) * 2.0)
+	var room_h: float = clamp(desired_room_h, 560.0, max_room_h)
+	var room_left: float = barrier_x
+	var room_right: float = room_left + room_w
 	var room_top: float = room_cy - room_h * 0.5
 	var room_bottom: float = room_cy + room_h * 0.5
-	var barrier_x: float = room_left
+
+	room_cx_f = room_cx
+	room_cy_f = room_cy
+	room_w_f = room_w
+	room_h_f = room_h
 
 	# --- Inner room walls (sealed except west door gap) ---
 	_spawn_wall(wall_scene, Vector2(room_w + room_thick, room_thick), Vector2(room_cx, room_top))      # North
@@ -139,7 +156,7 @@ func _ready() -> void:
 	rng.randomize()  # new seed every playthrough
 
 	# Maze rectangle (to the left of the room’s west wall = barrier_x = room_left)
-	var maze_left   := W * 0.22
+	var maze_left   := W * 0.30
 	var maze_right  := barrier_x   # attach directly to the door wall
 	var maze_top    := H * 0.32
 	var maze_bottom := H * 0.86
@@ -147,9 +164,9 @@ func _ready() -> void:
 	var maze_w := maze_right - maze_left
 	var maze_h := maze_bottom - maze_top
 
-	# Light complexity: 6–8 cols, 4–6 rows (corridors wide enough for forklift + piece)
-	var cols: int = clamp(int(floor(maze_w / 140.0)), 6, 8)
-	var rows: int = clamp(int(floor(maze_h / 140.0)), 4, 6)
+	# Increased complexity: 10–14 cols, 7–10 rows (still passable corridors)
+	var cols: int = clamp(int(floor(maze_w / 100.0)), 4, 6)
+	var rows: int = clamp(int(floor(maze_h / 100.0)), 2, 4)
 	var CELL: float = min(maze_w / float(cols), maze_h / float(rows))
 	var HALF: float = CELL * 0.5
 
@@ -225,8 +242,8 @@ func _ready() -> void:
 	vwall[cols][exit_cy] = false         # exit on the EAST boundary (toward the door)
 
 	# Now spawn walls as your Wall.tscn segments (keep corridors fairly wide)
-	var thick_min := 34.0
-	var thick_max := 50.0
+	var thick_min := 28.0
+	var thick_max := 36.0
 
 	var gap_top := gap_y - gap_h * 0.5
 	var gap_bot := gap_y + gap_h * 0.5
@@ -236,14 +253,7 @@ func _ready() -> void:
 		if vwall[0][y]:
 			_spawn_wall(wall_scene, Vector2(thick_max, CELL + 0.001), Vector2(maze_left, maze_top + (y + 0.5) * CELL))
 
-		# EAST outer edge — skip any segment that intersects the door opening
-		if vwall[cols][y]:
-			var seg_center_y := maze_top + (y + 0.5) * CELL
-			var seg_top := seg_center_y - HALF
-			var seg_bot := seg_center_y + HALF
-			var intersects_door := not (seg_bot <= gap_top or seg_top >= gap_bot)
-			if not intersects_door:
-				_spawn_wall(wall_scene, Vector2(thick_max, CELL + 0.001), Vector2(maze_right, seg_center_y))
+	# (Removed EAST outer-edge segments at maze_right to avoid extra walls beside the door)
 	# Inner walls (varied thickness)
 	var t := _rng_thick(rng, thick_min, thick_max)
 
@@ -260,23 +270,16 @@ func _ready() -> void:
 	# Clear a tiny “vestibule” between maze exit and the door opening (no walls placed there).
 	# (We already opened vwall[cols][exit_cy] = false, so the east edge of that cell is open toward barrier_x.)
 
-	# Vertical connectors
-	for i in range(2):
-		var len_v: float = rng.randf_range(200.0, 260.0)
-		var thick_v: float = rng.randf_range(36.0, 50.0)
-		var x_v: float = rng.randf_range(W * 0.40, W * 0.75)
-		var y_v: float = rng.randf_range(H * 0.45, H * 0.75)
-		_spawn_wall(wall_scene, Vector2(thick_v, len_v), Vector2(x_v, y_v))
+	# Perimeter caps to discourage going around the maze
+	var cap_thick: float = 60.0
+	var cap_left: float = 60.0
+	var cap_right: float = barrier_x + room_thick * 0.25 - 50
+	var cap_top_y: float = maze_top - cap_thick * 0.5
+	var cap_bot_y: float = maze_bottom + cap_thick * 0.5
+	_spawn_wall(wall_scene, Vector2(max(0.0, cap_right - cap_left), cap_thick), Vector2((cap_left + cap_right) * 0.5, cap_top_y))
+	_spawn_wall(wall_scene, Vector2(max(0.0, cap_right - cap_left), cap_thick), Vector2((cap_left + cap_right) * 0.5, cap_bot_y))
 
-	var seal_x := barrier_x - room_thick * 0.5    # just left of the door line
-	var top_len : int = max(0.0, gap_top - maze_top)
-	if top_len > 0.0:
-		_spawn_wall(wall_scene, Vector2(room_thick * 0.6, top_len), Vector2(seal_x, (maze_top + gap_top) * 0.5))
-
-	var bot_len : int = max(0.0, maze_bottom - gap_bot)
-		
-	if bot_len > 0.0:
-		_spawn_wall(wall_scene, Vector2(room_thick * 0.6, bot_len), Vector2(seal_x, (gap_bot + maze_bottom) * 0.5))
+	# Removed non-functional vertical connectors and near-door sealing walls to widen the corridor
 	#############
 	add_child(slot)
 	add_child(piece)
@@ -324,6 +327,7 @@ func _physics_process(delta: float) -> void:
 	elif not slot.get("snapped"):
 		(piece as Node).call("update_free", delta)
 		clamp_to_world(piece, 20.0)
+		handle_piece_door_collision()
 	if hook:
 		(hook as Node).call("check_and_trigger", piece)
 	if door:
@@ -362,8 +366,8 @@ func update_camera() -> void:
 		return
 	var viewport_w := W
 	var viewport_h := H
-	var margin_x := viewport_w * 0.25
-	var margin_y := viewport_h * 0.25
+	var margin_x := viewport_w * 0.4
+	var margin_y := viewport_h * 0.4
 	var cam_pos := camera.position
 	var left := cam_pos.x - viewport_w * 0.5
 	var right := cam_pos.x + viewport_w * 0.5
@@ -425,6 +429,43 @@ func handle_wall_collision() -> void:
 				var am := get_node_or_null("/root/AudioManager")
 				if am: am.call("release")
 			return
+
+func handle_piece_door_collision() -> void:
+	if piece.get("held"):
+		return
+	if door == null:
+		return
+	var piece_pos: Vector2 = piece.global_position
+	var piece_radius: float = float(piece.get("size")) * 0.5
+	var door_pos: Vector2 = door.global_position
+	var ds: Vector2 = (door.get("size") as Vector2)
+	var wall_left = door_pos.x - ds.x * 0.5
+	var wall_right = door_pos.x + ds.x * 0.5
+	var wall_top = door_pos.y - ds.y * 0.5
+	var wall_bottom = door_pos.y + ds.y * 0.5
+	if (piece_pos.x + piece_radius > wall_left and 
+		piece_pos.x - piece_radius < wall_right and
+		piece_pos.y + piece_radius > wall_top and
+		piece_pos.y - piece_radius < wall_bottom):
+		var v: Vector2 = piece.get("velocity") as Vector2
+		var overlap_left = (piece_pos.x + piece_radius) - wall_left
+		var overlap_right = wall_right - (piece_pos.x - piece_radius)
+		var overlap_top = (piece_pos.y + piece_radius) - wall_top
+		var overlap_bottom = wall_bottom - (piece_pos.y - piece_radius)
+		var min_overlap = min(min(overlap_left, overlap_right), min(overlap_top, overlap_bottom))
+		if min_overlap == overlap_left:
+			v.x = -abs(v.x) * 0.8
+			piece.global_position.x = wall_left - piece_radius - 2
+		elif min_overlap == overlap_right:
+			v.x = abs(v.x) * 0.8
+			piece.global_position.x = wall_right + piece_radius + 2
+		elif min_overlap == overlap_top:
+			v.y = -abs(v.y) * 0.8
+			piece.global_position.y = wall_top - piece_radius - 2
+		else:
+			v.y = abs(v.y) * 0.8
+			piece.global_position.y = wall_bottom + piece_radius + 2
+		piece.set("velocity", v)
 
 func try_grab_or_release(dt: float) -> void:
 	if piece.get("held"):

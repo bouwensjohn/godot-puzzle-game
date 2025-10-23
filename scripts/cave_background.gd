@@ -68,7 +68,7 @@ func create_parallax_background() -> void:
 
 	var mid_ts := TileSet.new()
 	mid_ts.tile_size = Vector2i(128, 128)
-	var blotch_tex := load("res://textures/pushy_ice_tile_11_128_a80.png") as Texture2D
+	var blotch_tex := load("res://textures/pushy_ice_tile_14_128_a80.png") as Texture2D
 	if blotch_tex:
 		var atlas := TileSetAtlasSource.new()
 		atlas.texture = blotch_tex
@@ -101,9 +101,9 @@ func create_ice_floor() -> void:
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(128, 128)
 	var textures := [
-		"res://textures/pushy_ice_tile_06_128_a80.png",
-		"res://textures/pushy_ice_tile_07_128_a80.png",
-		"res://textures/pushy_ice_tile_08_128_a80.png",
+		"res://textures/pushy_ice_tile_15_128_a80.png",
+		"res://textures/pushy_ice_tile_16_128_a80.png",
+		"res://textures/pushy_ice_tile_17_128_a80.png",
 	]
 	var sources: Array[int] = []
 	for p in textures:

@@ -1,7 +1,7 @@
 extends Node2D
-@export var variation_strength: float = 0.4
-@export var speckle_count: int = 120
-@export var speckle_min_radius: float = 19.0
+@export var variation_strength: float = 0.3
+@export var speckle_count: int = 200
+@export var speckle_min_radius: float = 24.0
 @export var speckle_max_radius: float = 34.0
 @export var seed: int = 12345
 var _speckles: Array[Dictionary] = []
@@ -42,7 +42,7 @@ func _ensure_speckles() -> void:
 		var px := rng.randf_range(-half_w + r, half_w - r)
 		var py := rng.randf_range(-half_h + r, half_h - r)
 		var delta := rng.randf_range(-variation_strength, variation_strength)
-		var alpha := rng.randf_range(0.06, 0.16)
+		var alpha := rng.randf_range(0.16, 0.26)
 		_speckles.append({
 			"pos": Vector2(px, py),
 			"r": r,

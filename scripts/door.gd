@@ -8,6 +8,8 @@ var _size: Vector2 = Vector2(40, 120)
 @export var open_duration: float = 1.2
 @export var spring_anchor: Vector2 = Vector2.ZERO
 
+const DOOR_TEX: Texture2D = preload("res://textures/door.png")
+
 var closed_pos: Vector2
 var open_progress: float = 0.0
 var opening: bool = false
@@ -49,8 +51,11 @@ func update_open(delta: float) -> void:
 
 func _draw() -> void:
 	var s := _size
-	draw_rect(Rect2(Vector2(-s.x * 0.5, -s.y * 0.5), s), color)
-	draw_rect(Rect2(Vector2(-s.x * 0.5, -s.y * 0.5), s), Color8(20, 40, 80), false, 3.0)
+	if DOOR_TEX:
+		draw_texture_rect(DOOR_TEX, Rect2(Vector2(-s.x * 0.5, -s.y * 0.5), s), false)
+	else:
+		draw_rect(Rect2(Vector2(-s.x * 0.5, -s.y * 0.5), s), color)
+		draw_rect(Rect2(Vector2(-s.x * 0.5, -s.y * 0.5), s), Color8(20, 40, 80), false, 3.0)
 	if spring_anchor != Vector2.ZERO:
 		var s_from_local := Vector2(s.x * 0.5, 0)
 		var s_to_local := to_local(spring_anchor)

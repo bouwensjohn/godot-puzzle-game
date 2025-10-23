@@ -180,8 +180,8 @@ func update_camera() -> void:
 		return
 	var viewport_w := W
 	var viewport_h := H
-	var margin_x := viewport_w * 0.25
-	var margin_y := viewport_h * 0.25
+	var margin_x := viewport_w * 0.4
+	var margin_y := viewport_h * 0.4
 	var cam_pos := camera.position
 	var left := cam_pos.x - viewport_w * 0.5
 	var right := cam_pos.x + viewport_w * 0.5
