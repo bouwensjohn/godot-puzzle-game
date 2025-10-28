@@ -4,7 +4,7 @@ signal triggered_signal
 
 @export var arm_len: float = 100.0
 @export var angle: float = PI
-@export var color: Color = Color8(220, 180, 60)
+@export var color: Color = Color8(200, 180, 60)
 
 var triggered: bool = false
 @export var rotation_duration: float = 0.6

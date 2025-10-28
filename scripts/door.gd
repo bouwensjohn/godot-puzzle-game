@@ -3,10 +3,19 @@ extends StaticBody2D
 var _size: Vector2 = Vector2(40, 120)
 @export var size: Vector2:
 	set = set_size, get = get_size
-@export var color: Color = Color8(80, 160, 255, 230)
+@export var color: Color = Color8(80, 160, 255, 130)
 @export var open_offset: float = 200.0
 @export var open_duration: float = 1.2
 @export var spring_anchor: Vector2 = Vector2.ZERO
+
+@export var spring_thickness: float = 20.0
+@export var spring_color: Color = Color8(120, 200, 255, 150)
+@export var spring_stripe_color: Color = Color8(255, 255, 255, 180)
+@export var spring_stripe_spacing: float = 24.0
+@export var spring_stripe_width: float = 4.0
+@export var spring_stripe_angle_deg: float = 35.0
+@export var spring_stripe_length_factor: float = 1.2
+@export var spring_end_margin: float = 18.0
 
 const DOOR_TEX: Texture2D = preload("res://textures/door.png")
 
@@ -51,12 +60,27 @@ func update_open(delta: float) -> void:
 
 func _draw() -> void:
 	var s := _size
+	if spring_anchor != Vector2.ZERO:
+		var from := Vector2(s.x * 0.5, 0)
+		var to := to_local(spring_anchor)
+		draw_line(from, to, spring_color, spring_thickness)
+		var axis := to - from
+		var L := axis.length()
+		if L > 1.0:
+			var dir := axis / L
+			var perp := Vector2(-dir.y, dir.x)
+			var angle := deg_to_rad(spring_stripe_angle_deg)
+			var sd := perp.rotated(angle).normalized()
+			var half_len := spring_thickness * spring_stripe_length_factor * 0.5
+			var t := spring_end_margin
+			while t < L - spring_end_margin:
+				var c := from + dir * t
+				var p1 := c - sd * half_len
+				var p2 := c + sd * half_len
+				draw_line(p1, p2, spring_stripe_color, spring_stripe_width)
+				t += spring_stripe_spacing
 	if DOOR_TEX:
 		draw_texture_rect(DOOR_TEX, Rect2(Vector2(-s.x * 0.5, -s.y * 0.5), s), false)
 	else:
 		draw_rect(Rect2(Vector2(-s.x * 0.5, -s.y * 0.5), s), color)
 		draw_rect(Rect2(Vector2(-s.x * 0.5, -s.y * 0.5), s), Color8(20, 40, 80), false, 3.0)
-	if spring_anchor != Vector2.ZERO:
-		var s_from_local := Vector2(s.x * 0.5, 0)
-		var s_to_local := to_local(spring_anchor)
-		draw_line(s_from_local, s_to_local, Color8(120, 200, 255, 200), 6.0)

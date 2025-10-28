@@ -101,9 +101,9 @@ func create_ice_floor() -> void:
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(128, 128)
 	var textures := [
-		"res://textures/pushy_ice_tile_15_128_a80.png",
-		"res://textures/pushy_ice_tile_16_128_a80.png",
-		"res://textures/pushy_ice_tile_17_128_a80.png",
+		"res://textures/pushy_ice_tile_18_128_a80.png",
+		"res://textures/pushy_ice_tile_19_128_a80.png",
+		"res://textures/pushy_ice_tile_20_128_a80.png",
 	]
 	var sources: Array[int] = []
 	for p in textures:
