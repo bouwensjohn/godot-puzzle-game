@@ -51,6 +51,11 @@ func setup_challenges() -> void:
 			"name": "Hook Door Challenge",
 			"scene": preload("res://scenes/ChallengeSix.tscn"),
 			"description": "Rotate a corner hook to pull a lever and spring-open the door to reach the slot"
+		},
+		{
+			"name": "Ricochet Gauntlet",
+			"scene": preload("res://scenes/ChallengeSeven.tscn"),
+			"description": "Evade 20 moving bumpers and use the final bumper to ricochet the piece into the locked slot"
 		}
 	]
 
