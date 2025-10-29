@@ -56,6 +56,11 @@ func setup_challenges() -> void:
 			"name": "Ricochet Gauntlet",
 			"scene": preload("res://scenes/ChallengeSeven.tscn"),
 			"description": "Evade 20 moving bumpers and use the final bumper to ricochet the piece into the locked slot"
+		},
+		{
+			"name": "Castle Rooms",
+			"scene": preload("res://scenes/ChallengeEight.tscn"),
+			"description": "Navigate a castle of rooms with doorway gaps. Bumpers in rooms awaken and chase your 1s-ago path to retrieve the piece and deliver it outside."
 		}
 	]
 
