@@ -5,6 +5,9 @@ var velocity: Vector2 = Vector2.ZERO
 var thrusting := false
 var is_skidding := false
 var skid_intensity := 0.0
+@export var dust_lag_seconds := 0.05
+var _trail_time := 0.0
+var _trail_hist := []
 
 const ROT_SPEED := 3.4 # rad/s
 const ACC := 220.0
@@ -29,6 +32,10 @@ func update_move(delta: float) -> void:
 	
 	# integrate
 	position += velocity * delta
+	_trail_time += delta
+	_trail_hist.push_back({"t": _trail_time, "p": global_position, "r": global_rotation})
+	while _trail_hist.size() > 0 and (_trail_time - (_trail_hist[0]["t"] as float)) > 2.5:
+		_trail_hist.pop_front()
 	
 	# audio hook
 	var am := get_node_or_null("/root/AudioManager")
@@ -84,6 +91,10 @@ func _draw() -> void:
 	
 	# skid marks when skidding - draw FIRST so they appear behind the forklift
 	if is_skidding:
+		var tp := _trail_pose_ago(dust_lag_seconds)
+		var local_pos := to_local(tp["p"])
+		var local_rot := (tp["r"] as float) - global_rotation
+		draw_set_transform(local_pos, local_rot, Vector2.ONE)
 		var skid_alpha := int(max(skid_intensity, 0.5) * 255)  # More visible
 		var skid_color := Color8(255, 255, 255, skid_alpha)  # Darker gray color
 		# Draw skid marks from rear wheels following lateral velocity direction
@@ -165,6 +176,7 @@ func _draw() -> void:
 			draw_line(front_left_center + dust_offset, front_left_center + dust_offset + dust_direction, dust_color, 0.8)
 			# Right front wheel dust
 			draw_line(front_right_center + dust_offset, front_right_center + dust_offset + dust_direction, dust_color, 0.8)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	
 	# forklift main body (U-shaped rear section)
 	# Dark background fill inside U-shape
@@ -214,3 +226,25 @@ func _draw() -> void:
 
 func _process(_delta: float) -> void:
 	queue_redraw()
+
+func _trail_pose_ago(seconds_ago: float) -> Dictionary:
+	var target_t := _trail_time - seconds_ago
+	if _trail_hist.size() == 0:
+		return {"p": global_position, "r": global_rotation}
+	var prev: Dictionary = _trail_hist[0]
+	for i in range(1, _trail_hist.size()):
+		var cur: Dictionary = _trail_hist[i]
+		if (cur["t"] as float) >= target_t:
+			var t0: float = prev["t"]
+			var t1: float = cur["t"]
+			var p0: Vector2 = prev["p"]
+			var p1: Vector2 = cur["p"]
+			var r0: float = prev["r"]
+			var r1: float = cur["r"]
+			if t1 <= t0:
+				return {"p": p1, "r": r1}
+			var f: float = clamp((target_t - t0) / (t1 - t0), 0.0, 1.0)
+			var ang := r0 + wrapf(r1 - r0, -PI, PI) * f
+			return {"p": p0.lerp(p1, f), "r": ang}
+		prev = cur
+	return {"p": (_trail_hist[_trail_hist.size() - 1]["p"] as Vector2), "r": (_trail_hist[_trail_hist.size() - 1]["r"] as float)}
