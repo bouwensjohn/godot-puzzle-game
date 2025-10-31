@@ -19,7 +19,7 @@ const WORLD_SCALE := 2.0
 const RNG_SEED := 8181
 const CH5_WALL_COLOR := Color(0.26, 0.48, 0.72, 0.2)
 const CHASE_DELAY := 1.0
-const MAX_TOTAL_BUMPERS := 12
+const MAX_TOTAL_BUMPERS := 16
 const BIG_ROOM_PROB := 0.20
 
 const CELL_W := 380.0
@@ -46,6 +46,9 @@ var _bumpers: Array[Node2D] = []
 var _bumper_active: Array[bool] = []
 var _bumper_room_idx: Array[int] = []
 var _bumper_speed: Array[float] = []
+var _bumper_home: Array[Vector2] = []
+var _room_linger_bumper := {}
+var _fk_prev_gid := -1
 
 var elapsed_time := 0.0
 var _fk_history: Array = []
@@ -112,6 +115,12 @@ func init_state() -> void:
 	camera.position = forklift.global_position
 	update_camera()
 	update_hud()
+	_room_linger_bumper.clear()
+	_fk_prev_gid = -1
+	for i in range(_bumpers.size()):
+		_bumper_active[i] = false
+		if i < _bumper_home.size():
+			_bumpers[i].global_position = _bumper_home[i]
 
 func _process(_delta: float) -> void:
 	queue_redraw()
@@ -141,12 +150,27 @@ func _physics_process(delta: float) -> void:
 	clamp_to_world(forklift, 30.0)
 	update_camera()
 	var room_idx := _room_index_at_point(forklift.global_position)
+	var fk_gid := -1
 	if room_idx >= 0:
-		var fk_gid := _room_group_id[room_idx]
+		fk_gid = _room_group_id[room_idx]
+	if fk_gid != _fk_prev_gid:
+		if _fk_prev_gid >= 0:
+			if not _room_linger_bumper.has(_fk_prev_gid):
+				var li := _pick_linger_bumper_for_gid(_fk_prev_gid)
+				if li >= 0:
+					_room_linger_bumper[_fk_prev_gid] = li
+		_fk_prev_gid = fk_gid
+	for i in range(_bumpers.size()):
+		_bumper_active[i] = false
+	if fk_gid >= 0:
 		for i in range(_bumpers.size()):
 			var b_gid := _room_group_id[_bumper_room_idx[i]]
 			if b_gid == fk_gid:
 				_bumper_active[i] = true
+	for gid in _room_linger_bumper.keys():
+		var bi := int(_room_linger_bumper[gid])
+		if bi >= 0 and bi < _bumper_active.size():
+			_bumper_active[bi] = true
 	var target_pos := _trail_pos_ago(CHASE_DELAY)
 	for i in range(_bumpers.size()):
 		var b: Node2D = _bumpers[i]
@@ -161,6 +185,23 @@ func _physics_process(delta: float) -> void:
 			p.x = clamp(p.x, rr.position.x + margin, rr.position.x + rr.size.x - margin)
 			p.y = clamp(p.y, rr.position.y + margin, rr.position.y + rr.size.y - margin)
 			b.global_position = p
+		else:
+			if i < _bumper_home.size():
+				var hp: Vector2 = _bumper_home[i]
+				var d2 := hp - b.global_position
+				var dist2 := d2.length()
+				if dist2 > 0.5:
+					var step := _bumper_speed[i] * 0.85 * delta
+					if step > dist2: step = dist2
+					b.global_position += d2.normalized() * step
+				else:
+					b.global_position = hp
+				var rr2 := _room_group_rect[_bumper_room_idx[i]]
+				var margin2 := (b.get("radius") as float) + 10.0
+				var p2 := b.global_position
+				p2.x = clamp(p2.x, rr2.position.x + margin2, rr2.position.x + rr2.size.x - margin2)
+				p2.y = clamp(p2.y, rr2.position.y + margin2, rr2.position.y + rr2.size.y - margin2)
+				b.global_position = p2
 	if piece.get("held"):
 		piece.rotation = forklift.rotation
 		var hold_dist: float = 28.0 + float(piece.get("size")) * 0.5
@@ -603,36 +644,80 @@ func _spawn_bumpers_in_rooms() -> void:
 	_bumper_active.clear()
 	_bumper_room_idx.clear()
 	_bumper_speed.clear()
-	var total: int = 0
+	_bumper_home.clear()
+	var piece_cell := _pick_farthest_cell(Vector2i(0, _entrance_row), _vwall, _hwall, true)
+	var piece_cell_idx: int = piece_cell.y * _cols + piece_cell.x
+	var group_cells_by_gid := {}
 	for idx in range(_room_rects.size()):
+		var gid: int = _room_group_id[idx]
+		if not group_cells_by_gid.has(gid):
+			group_cells_by_gid[gid] = []
+		(group_cells_by_gid[gid] as Array).append(idx)
+	var total: int = 0
+	var gids: Array = group_cells_by_gid.keys()
+	gids.sort()
+	for gid in gids:
 		if total >= MAX_TOTAL_BUMPERS:
 			break
-		var r := _room_rects[idx]
-		var rnd := _rng.randf()
+		var cells: Array = group_cells_by_gid[gid]
+		var is_big: bool = cells.size() > 1
+		var allowed: Array = cells.duplicate()
+		allowed.erase(piece_cell_idx)
 		var count := 0
-		if rnd < 0.60:
-			count = 0
-		elif rnd < 0.90:
-			count = 1
+		var rnd := _rng.randf()
+		if is_big:
+			if rnd < 0.4:
+				count = 2
+			elif rnd < 0.85:
+				count = 1
+			else:
+				count = 0
 		else:
+			if rnd < 0.55:
+				count = 1
+			else:
+				count = 0
+		if allowed.size() == 0:
+			count = 0
+		if not is_big and count > 1:
+			count = 1
+		if is_big and count > 2:
 			count = 2
+		if total + count > MAX_TOTAL_BUMPERS:
+			count = MAX_TOTAL_BUMPERS - total
 		for i in range(count):
 			if total >= MAX_TOTAL_BUMPERS:
 				break
+			if allowed.size() == 0:
+				break
+			var pick_i := int(floor(_rng.randf() * allowed.size()))
+			if pick_i < 0: pick_i = 0
+			if pick_i >= allowed.size(): pick_i = allowed.size() - 1
+			var cell_idx = allowed[pick_i]
+			var cr: Rect2 = _room_rects[cell_idx]
+			var px := _rng.randf_range(cr.position.x + 60.0, cr.position.x + cr.size.x - 60.0)
+			var py := _rng.randf_range(cr.position.y + 60.0, cr.position.y + cr.size.y - 60.0)
 			var b: Node2D = BumperScript.new()
-			b.set("radius", 10.0)
-			b.set("boost", 1.0)
+			b.set("radius", 15.0)
+			b.set("boost", 0.01)
 			b.set("angle_mix", 0.9)
-			var rr := _room_group_rect[idx]
-			var px := _rng.randf_range(rr.position.x + 60.0, rr.position.x + rr.size.x - 60.0)
-			var py := _rng.randf_range(rr.position.y + 60.0, rr.position.y + rr.size.y - 60.0)
 			b.global_position = Vector2(px, py)
 			add_child(b)
 			_bumpers.append(b)
 			_bumper_active.append(false)
-			_bumper_room_idx.append(idx)
+			_bumper_room_idx.append(int(cell_idx))
 			_bumper_speed.append(_rng.randf_range(210.0, 320.0))
+			_bumper_home.append(b.global_position)
 			total += 1
+
+func _pick_linger_bumper_for_gid(gid: int) -> int:
+	var best := -1
+	for i in range(_bumpers.size()):
+		var b_gid := _room_group_id[_bumper_room_idx[i]]
+		if b_gid == gid:
+			best = i
+			break
+	return best
 
 func _trail_pos_ago(seconds_ago: float) -> Vector2:
 	var target_t := elapsed_time - seconds_ago

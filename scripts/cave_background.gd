@@ -27,7 +27,7 @@ func create_parallax_background() -> void:
 
 	var far_map := TileMap.new()
 	far_map.name = "ParallaxFarMap"
-	far_map.set("modulate", Color(0.85, 0.9, 1.0, 0.4))
+	far_map.set("modulate", Color(0.85, 0.9, 1.0, 0.2))
 	far_map.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var far_mat := CanvasItemMaterial.new()
 	far_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MIX
@@ -49,7 +49,7 @@ func create_parallax_background() -> void:
 	var fty := int(ceil(world_h / 128.0)) + 2
 	for y in range(-1, fty):
 		for x in range(-1, ftx):
-			if randf() < 0.18:
+			if randf() < 0.1:
 				far_map.set_cell(0, Vector2i(x, y), 0, Vector2i(0, 0), 0)
 
 	var mid := ParallaxLayer.new()
@@ -59,7 +59,7 @@ func create_parallax_background() -> void:
 
 	var mid_map := TileMap.new()
 	mid_map.name = "ParallaxMidMap"
-	mid_map.set("modulate", Color(0.8, 0.8, 0.9, 0.4))
+	mid_map.set("modulate", Color(0.8, 0.8, 0.9, 0.2))
 	mid_map.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var mid_mat := CanvasItemMaterial.new()
 	mid_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MIX
@@ -68,7 +68,7 @@ func create_parallax_background() -> void:
 
 	var mid_ts := TileSet.new()
 	mid_ts.tile_size = Vector2i(128, 128)
-	var blotch_tex := load("res://textures/pushy_ice_tile_14_128_a80.png") as Texture2D
+	var blotch_tex := load("res://textures/pushy_ice_tile_11_128_a80.png") as Texture2D
 	if blotch_tex:
 		var atlas := TileSetAtlasSource.new()
 		atlas.texture = blotch_tex
@@ -82,14 +82,14 @@ func create_parallax_background() -> void:
 	var ty := int(ceil(world_h / 128.0)) + 2
 	for y in range(-1, ty):
 		for x in range(-1, tx):
-			if randf() < 0.26:
+			if randf() < 0.1:
 				mid_map.set_cell(0, Vector2i(x, y), 0, Vector2i(0, 0), 0)
 
 func create_ice_floor() -> void:
 	var tilemap := TileMap.new()
 	tilemap.name = "TileMapIce"
 	tilemap.set("z_index", 1)
-	tilemap.set("modulate", Color(1, 1, 1, 0.58))
+	tilemap.set("modulate", Color(1, 1, 1, 0.1))
 	tilemap.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var shader := Shader.new()
 	shader.code = "shader_type canvas_item;\nrender_mode blend_mix, unshaded;\nvoid fragment(){\n\tCOLOR *= texture(TEXTURE, UV);\n}\n"
@@ -101,9 +101,9 @@ func create_ice_floor() -> void:
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(128, 128)
 	var textures := [
-		"res://textures/pushy_ice_tile_18_128_a80.png",
-		"res://textures/pushy_ice_tile_19_128_a80.png",
-		"res://textures/pushy_ice_tile_20_128_a80.png",
+		"res://textures/pushy_ice_tile_21_128_a80.png",
+		"res://textures/pushy_ice_tile_22_128_a80.png",
+		"res://textures/pushy_ice_tile_23_128_a80.png",
 	]
 	var sources: Array[int] = []
 	for p in textures:
@@ -129,4 +129,5 @@ func create_ice_floor() -> void:
 	for y in range(-1, tiles_y):
 		for x in range(-1, tiles_x):
 			var sid := sources[int(randi()) % sources.size()]
-			tilemap.set_cell(0, Vector2i(x, y), sid, Vector2i(0, 0), 0)
+			if randf() < 0.1:
+				tilemap.set_cell(0, Vector2i(x, y), sid, Vector2i(0, 0), 0)

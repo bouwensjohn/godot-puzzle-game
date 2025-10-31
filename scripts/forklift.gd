@@ -62,7 +62,7 @@ func calculate_skidding() -> void:
 	
 	# Determine if we're skidding based on lateral movement
 	is_skidding = lateral_speed > 50.0 and speed > 20.0
-	skid_intensity = clamp(lateral_speed / 100.0, 0.0, 1.0)
+	skid_intensity = clamp(lateral_speed / 100.0, 0.2, 1.0)
 
 func nose_global_position() -> Vector2:
 	# Forklift nose is at the tip of the forks (front of the vehicle)
@@ -85,7 +85,7 @@ func _draw() -> void:
 	# skid marks when skidding - draw FIRST so they appear behind the forklift
 	if is_skidding:
 		var skid_alpha := int(max(skid_intensity, 0.5) * 255)  # More visible
-		var skid_color := Color8(64, 128, 64, skid_alpha)  # Darker gray color
+		var skid_color := Color8(255, 255, 255, skid_alpha)  # Darker gray color
 		# Draw skid marks from rear wheels following lateral velocity direction
 		var rear_left_center := Vector2(-20, -18)
 		var rear_right_center := Vector2(-20, 18)
@@ -107,7 +107,7 @@ func _draw() -> void:
 			var sprinkle_offset := Vector2(randf_range(-15, 15), randf_range(-15, 15))  # Compact scatter
 			var sprinkle_length := randf_range(8, 20)  # Shorter marks
 			var sprinkle_direction := local_lateral_direction * sprinkle_length
-			var sprinkle_alpha := int(skid_alpha * randf_range(0.3, 1.0))  # More visible sprinkles
+			var sprinkle_alpha := int(skid_alpha * randf_range(0.5, 1.0))  # More visible sprinkles
 			var sprinkle_color := Color8(16, 96, 16, sprinkle_alpha)
 			var line_thickness := randf_range(1.0, 2.5)  # Slightly thinner
 			# Left wheel sprinkles
@@ -120,12 +120,12 @@ func _draw() -> void:
 			var dust_offset := Vector2(randf_range(-50, 50), randf_range(-30, 30))
 			var perpendicular_dir := Vector2(-local_lateral_direction.y, local_lateral_direction.x)  # 90 degrees rotated
 			var dust_direction := perpendicular_dir * randf_range(8, 20)
-			var dust_alpha := int(skid_alpha * randf_range(0.2, 1.0))  # More visible dust
+			var dust_alpha := int(skid_alpha * randf_range(0.6, 1.0))  # More visible dust
 			var dust_color := Color8(64, 128, 64, dust_alpha)
 			# Left wheel dust
-			draw_line(rear_left_center + dust_offset, rear_left_center + dust_offset + dust_direction, dust_color, 1.0)
+			draw_line(rear_left_center + dust_offset, rear_left_center + dust_offset + dust_direction, dust_color, 2.0)
 			# Right wheel dust
-			draw_line(rear_right_center + dust_offset, rear_right_center + dust_offset + dust_direction, dust_color, 1.0)
+			draw_line(rear_right_center + dust_offset, rear_right_center + dust_offset + dust_direction, dust_color, 2.0)
 		
 		# Add skid marks for front wheels too
 		var front_left_center := Vector2(18, -13)
