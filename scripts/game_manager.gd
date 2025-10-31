@@ -7,6 +7,8 @@ var current_challenge_index = 0
 var challenges = []
 var challenge_completed_timer: Timer
 var is_transitioning = false
+var fade_layer: CanvasLayer
+var fade_rect: ColorRect
 
 func _ready() -> void:
 	# Initialize challenges array for future expansion
@@ -14,6 +16,7 @@ func _ready() -> void:
 	
 	# Setup completion timer
 	setup_completion_timer()
+	setup_fade_overlay()
 	
 	# Start with splash screen
 	show_splash_screen()
@@ -85,7 +88,7 @@ func _on_splash_finished() -> void:
 func load_current_challenge() -> void:
 	# Clear any existing children (splash screen should already be freed)
 	for child in get_children():
-		if child != challenge_completed_timer:  # Don't free the timer
+		if child != challenge_completed_timer and child != fade_layer:  # Don't free the timer
 			child.queue_free()
 	
 	# Wait a frame to ensure cleanup
@@ -132,9 +135,19 @@ func on_challenge_completed() -> void:
 		await get_tree().create_timer(3.0).timeout
 		_on_completion_timer_timeout()
 
+	if fade_rect:
+		var tw := create_tween()
+		tw.tween_property(fade_rect, "modulate:a", 1.0, 0.8)
+
 func _on_completion_timer_timeout() -> void:
 	is_transitioning = false
+	if fade_rect:
+		fade_rect.modulate.a = 1.0
 	next_challenge()
+	await get_tree().process_frame
+	if fade_rect:
+		var tw := create_tween()
+		tw.tween_property(fade_rect, "modulate:a", 0.0, 0.8)
 
 func get_current_challenge_info() -> Dictionary:
 	if current_challenge_index < challenges.size():
@@ -158,3 +171,20 @@ func jump_to_challenge(n: int) -> void:
 		challenge_completed_timer.stop()
 	current_challenge_index = n
 	load_current_challenge()
+	if fade_rect:
+		fade_rect.modulate.a = 0.0
+
+func setup_fade_overlay() -> void:
+	fade_layer = CanvasLayer.new()
+	fade_layer.layer = 100
+	add_child(fade_layer)
+	fade_rect = ColorRect.new()
+	fade_rect.color = Color(0, 0, 0, 1)
+	fade_rect.modulate = Color(1, 1, 1, 0)
+	fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade_rect.offset_left = 0
+	fade_rect.offset_top = 0
+	fade_rect.offset_right = 0
+	fade_rect.offset_bottom = 0
+	fade_layer.add_child(fade_rect)
