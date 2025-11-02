@@ -131,3 +131,59 @@ func create_ice_floor() -> void:
 			var sid := sources[int(randi()) % sources.size()]
 			if randf() < 0.1:
 				tilemap.set_cell(0, Vector2i(x, y), sid, Vector2i(0, 0), 0)
+
+	if _is_graffiti_allowed():
+		place_graffiti_on_edges(world_w, world_h)
+
+func _is_graffiti_allowed() -> bool:
+	var p := get_parent()
+	if p == null:
+		return true
+	var n := str(p.name)
+	if n == "ChallengeSix" or n == "ChallengeEight" or n == "ChallengeNine":
+		return false
+	return true
+
+func place_graffiti_on_edges(world_w: int, world_h: int) -> void:
+	var paths: Array[String] = []
+	for i in range(1, 21):
+		var p := "res://textures/graffiti/Graffity_512_%02d.png" % i
+		paths.append(p)
+	var idxs: Array[int] = []
+	for i in range(paths.size()):
+		idxs.append(i)
+	idxs.shuffle()
+	var count: int = min(3, idxs.size())
+	var margin := 256.0
+	var minx := margin
+	var maxx := float(world_w) - margin
+	var miny := margin
+	var maxy := float(world_h) - margin
+	var placed_rects: Array[Rect2] = []
+	for n in range(count):
+		var tex := load(paths[idxs[n]]) as Texture2D
+		if tex == null:
+			continue
+		var pos := Vector2.ZERO
+		var rect := Rect2()
+		var found := false
+		for _t in range(50):
+			pos = Vector2(minx + (maxx - minx) * randf(), maxy)
+			rect = Rect2(pos - Vector2(256, 256), Vector2(512, 512))
+			var overlaps := false
+			for r in placed_rects:
+				if rect.intersects(r, true):
+					overlaps = true
+					break
+			if not overlaps:
+				found = true
+				break
+		if not found:
+			continue
+		var spr := Sprite2D.new()
+		spr.texture = tex
+		spr.set("z_index", 2)
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		spr.position = pos
+		add_child(spr)
+		placed_rects.append(rect)
