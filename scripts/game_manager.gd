@@ -9,6 +9,17 @@ var challenge_completed_timer: Timer
 var is_transitioning = false
 var fade_layer: CanvasLayer
 var fade_rect: ColorRect
+var fade_text: Label
+var selection_layer: CanvasLayer
+var current_challenge_node: Node
+var mode_two_players := false
+var player_names: Array[String] = ["Player 1", "Player 2"]
+var player_colors: Array[Color] = [Color(0.95, 0.25, 0.25), Color(0.25, 0.6, 1.0)]
+var player_scores: Array[int] = [0, 0]
+var current_player_idx := 0
+var run_elapsed := 0.0
+var run_active := false
+var last_times: Array[float] = [-1.0, -1.0]
 
 func _ready() -> void:
 	# Initialize challenges array for future expansion
@@ -64,6 +75,11 @@ func setup_challenges() -> void:
 			"name": "Castle Rooms",
 			"scene": preload("res://scenes/ChallengeEight.tscn"),
 			"description": "Navigate a castle of rooms with doorway gaps. Bumpers in rooms awaken and chase your 1s-ago path to retrieve the piece and deliver it outside."
+		},
+		{
+			"name": "Castle Diversion",
+			"scene": preload("res://scenes/ChallengeNine.tscn"),
+			"description": "Castle rooms with an unlock spot and many throw-able pills; bumpers prefer moving pills and eat them to grow."
 		}
 	]
 
@@ -82,8 +98,7 @@ func show_splash_screen() -> void:
 	splash.splash_finished.connect(_on_splash_finished)
 
 func _on_splash_finished() -> void:
-	# Load the main game after splash screen
-	load_current_challenge()
+	show_player_mode_prompt()
 
 func load_current_challenge() -> void:
 	# Clear any existing children (splash screen should already be freed)
@@ -99,7 +114,12 @@ func load_current_challenge() -> void:
 		var challenge = challenges[current_challenge_index]
 		print("Loading challenge ", current_challenge_index, ": ", challenge.name)
 		var game_instance = challenge.scene.instantiate()
+		current_challenge_node = game_instance
 		add_child(game_instance)
+		run_elapsed = 0.0
+		run_active = true
+		await get_tree().process_frame
+		_apply_player_to_hud()
 	else:
 		print("No more challenges to load")
 
@@ -122,6 +142,11 @@ func on_challenge_completed() -> void:
 	is_transitioning = true
 	print("Challenge completed! Starting transition...")
 	
+	if mode_two_players:
+		if current_player_idx >= 0 and current_player_idx < 2:
+			last_times[current_player_idx] = run_elapsed
+		run_active = false
+	
 	# Play triumph sound
 	var am := get_node_or_null("/root/AudioManager")
 	if am and am.has_method("triumph"):
@@ -141,22 +166,110 @@ func on_challenge_completed() -> void:
 
 func _on_completion_timer_timeout() -> void:
 	is_transitioning = false
-	if fade_rect:
-		fade_rect.modulate.a = 1.0
-	next_challenge()
-	await get_tree().process_frame
-	if fade_rect:
-		var tw := create_tween()
-		tw.tween_property(fade_rect, "modulate:a", 0.0, 0.8)
+	if not mode_two_players:
+		if fade_rect:
+			fade_rect.modulate.a = 1.0
+		next_challenge()
+		await get_tree().process_frame
+		if fade_text:
+			fade_text.text = ""
+		if fade_rect:
+			var tw := create_tween()
+			tw.tween_property(fade_rect, "modulate:a", 0.0, 0.8)
+		return
+	var p0: float = last_times[0]
+	var p1: float = last_times[1]
+	if current_player_idx == 0:
+		if fade_rect:
+			fade_rect.modulate.a = 1.0
+		current_player_idx = 1
+		await get_tree().process_frame
+		load_current_challenge()
+		await get_tree().process_frame
+		if fade_rect:
+			var tw2 := create_tween()
+			tw2.tween_property(fade_rect, "modulate:a", 0.0, 0.8)
+		return
+	if current_player_idx == 1:
+		if fade_rect:
+			fade_rect.modulate.a = 1.0
+		var winner_msg: String = ""
+		if p0 >= 0.0 and p1 >= 0.0:
+			if abs(p0 - p1) < 0.0001:
+				player_scores[0] += 1
+				player_scores[1] += 1
+				winner_msg = "Tie: both +1 point\n" + player_names[0] + ": " + String.num(p0, 2) + "s  vs  " + player_names[1] + ": " + String.num(p1, 2) + "s"
+			elif p0 < p1:
+				player_scores[0] += 1
+				winner_msg = player_names[0] + " wins +1\n" + String.num(p0, 2) + "s vs " + String.num(p1, 2) + "s"
+			else:
+				player_scores[1] += 1
+				winner_msg = player_names[1] + " wins +1\n" + String.num(p1, 2) + "s vs " + String.num(p0, 2) + "s"
+		if fade_text:
+			fade_text.text = winner_msg
+			fade_text.add_theme_color_override("font_color", Color(1,1,1))
+		await get_tree().create_timer(1.6).timeout
+		last_times = [-1.0, -1.0]
+		current_player_idx = 0
+		current_challenge_index += 1
+		if current_challenge_index < challenges.size():
+			await get_tree().process_frame
+			load_current_challenge()
+			await get_tree().process_frame
+			if fade_text:
+				fade_text.text = ""
+			if fade_rect:
+				var tw3 := create_tween()
+				tw3.tween_property(fade_rect, "modulate:a", 0.0, 0.8)
+		else:
+			if fade_text:
+				var final_msg: String = player_names[0] + ": " + str(player_scores[0]) + "\n" + player_names[1] + ": " + str(player_scores[1])
+				var winner: String = ""
+				if player_scores[0] > player_scores[1]: winner = player_names[0]
+				elif player_scores[1] > player_scores[0]: winner = player_names[1]
+				else: winner = "Tie"
+				fade_text.text = "Final Score\n" + final_msg + "\nWinner: " + winner
 
 func get_current_challenge_info() -> Dictionary:
 	if current_challenge_index < challenges.size():
 		return challenges[current_challenge_index]
 	return {}
 
+func _apply_player_to_hud() -> void:
+	if not current_challenge_node:
+		return
+	var hud := _find_hud(current_challenge_node)
+	if hud and hud.has_method("set_player"):
+		if mode_two_players:
+			hud.call("set_player", player_names[current_player_idx], player_colors[current_player_idx])
+		else:
+			hud.call("set_player", "", Color(1,1,1))
+
+func _find_hud(n: Node) -> Node:
+	for c in n.get_children():
+		if c is CanvasLayer and c.has_method("set_player"):
+			return c
+		var sub := _find_hud(c)
+		if sub:
+			return sub
+	return null
+
+func _process(delta: float) -> void:
+	if run_active and not is_transitioning:
+		run_elapsed += delta
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		var code = event.keycode
+		if selection_layer and selection_layer.is_inside_tree():
+			if code == KEY_1:
+				_on_pick_one_player()
+				get_viewport().set_input_as_handled()
+				return
+			if code == KEY_2:
+				_on_pick_two_players()
+				get_viewport().set_input_as_handled()
+				return
 		var idx := -1
 		if code >= KEY_1 and code <= KEY_9:
 			idx = code - KEY_1
@@ -188,3 +301,127 @@ func setup_fade_overlay() -> void:
 	fade_rect.offset_right = 0
 	fade_rect.offset_bottom = 0
 	fade_layer.add_child(fade_rect)
+	fade_text = Label.new()
+	fade_text.text = ""
+	fade_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	fade_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	fade_text.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade_text.add_theme_font_size_override("font_size", 48)
+	fade_layer.add_child(fade_text)
+
+func show_player_mode_prompt() -> void:
+	selection_layer = CanvasLayer.new()
+	selection_layer.layer = 90
+	add_child(selection_layer)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	selection_layer.add_child(root)
+	var scrim := ColorRect.new()
+	scrim.color = Color(0, 0, 0, 0.5)
+	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
+	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(scrim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(520, 220)
+	center.add_child(panel)
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.custom_minimum_size = Vector2(480, 160)
+	panel.add_child(vb)
+	var ask := Label.new()
+	ask.text = "How many players (1 or 2)?"
+	ask.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ask.add_theme_font_size_override("font_size", 36)
+	vb.add_child(ask)
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_CENTER
+	hb.add_theme_constant_override("separation", 24)
+	vb.add_child(hb)
+	var one := Button.new()
+	one.text = "1 Player [1]"
+	one.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	one.pressed.connect(_on_pick_one_player)
+	hb.add_child(one)
+	var two := Button.new()
+	two.text = "2 Players [2]"
+	two.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	two.pressed.connect(_on_pick_two_players)
+	hb.add_child(two)
+
+func _on_pick_one_player() -> void:
+	mode_two_players = false
+	current_challenge_index = 0
+	if selection_layer: selection_layer.queue_free()
+	if fade_rect: fade_rect.modulate.a = 1.0
+	current_player_idx = 0
+	if fade_text:
+		fade_text.text = ""
+	load_current_challenge()
+	await get_tree().process_frame
+	if fade_rect:
+		var tw := create_tween()
+		tw.tween_property(fade_rect, "modulate:a", 0.0, 0.8)
+
+func _on_pick_two_players() -> void:
+	mode_two_players = true
+	current_challenge_index = 0
+	show_name_entry()
+
+func show_name_entry() -> void:
+	for c in selection_layer.get_children():
+		c.queue_free()
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	selection_layer.add_child(root)
+	var scrim := ColorRect.new()
+	scrim.color = Color(0, 0, 0, 0.5)
+	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
+	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(scrim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(520, 260)
+	center.add_child(panel)
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 12)
+	panel.add_child(vb)
+	var title := Label.new()
+	title.text = "Enter Player Names"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	vb.add_child(title)
+	var l1 := LineEdit.new()
+	l1.placeholder_text = "Player 1 Name"
+	l1.text = player_names[0]
+	l1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_child(l1)
+	var l2 := LineEdit.new()
+	l2.placeholder_text = "Player 2 Name"
+	l2.text = player_names[1]
+	l2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_child(l2)
+	var start := Button.new()
+	start.text = "Start"
+	start.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	start.pressed.connect(func():
+		player_names[0] = l1.text.strip_edges()
+		if player_names[0] == "": player_names[0] = "Player 1"
+		player_names[1] = l2.text.strip_edges()
+		if player_names[1] == "": player_names[1] = "Player 2"
+		selection_layer.queue_free()
+		if fade_rect: fade_rect.modulate.a = 1.0
+		current_player_idx = 0
+		load_current_challenge()
+		await get_tree().process_frame
+		if fade_rect:
+			var tw := create_tween()
+			tw.tween_property(fade_rect, "modulate:a", 0.0, 0.8)
+	)
+	vb.add_child(start)
+	l1.grab_focus()

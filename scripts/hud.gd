@@ -5,6 +5,8 @@ extends CanvasLayer
 @onready var stats_lbl: Label = $StatsLabel
 var last_vel: Vector2 = Vector2.ZERO
 var last_pos: Vector2 = Vector2.ZERO
+var _player_name: String = ""
+var _player_color: Color = Color(1,1,1)
 
 func _ready() -> void:
 	# Scale and position UI elements based on GameConfig
@@ -19,15 +21,24 @@ func set_position(p: Vector2) -> void:
 	vels.text = "x: %.1f  y: %.1f  vx: %.1f  vy: %.1f" % [last_pos.x, last_pos.y, last_vel.x, last_vel.y]
 
 func set_hold(is_held: bool) -> void:
-	hold.text = "Vastgehouden: %s" % ("ja" if is_held else "nee")
-	hold.add_theme_color_override("font_color", Color(0.49,1,0.77) if is_held else Color(1.0,0.70,0.70))
+	hold.text = ""
+	hold.visible = false
 
 func set_stats(stats: Dictionary) -> void:
 	var attempts: int = int(stats.get("attempts", 0))
 	var completed: int = int(stats.get("completed_count", 0))
 	var best_v: Variant = stats.get("best_time_seconds", null)
 	var best_str: String = "-" if best_v == null else "%.2f" % float(best_v)
-	stats_lbl.text = "Attempts: %d  Completed: %d  Best: %s s" % [attempts, completed, best_str]
+	var prefix := ""
+	if _player_name != "":
+		prefix = "%s  " % _player_name
+		stats_lbl.add_theme_color_override("font_color", _player_color)
+	stats_lbl.text = "%sAttempts: %d  Completed: %d  Best: %s s" % [prefix, attempts, completed, best_str]
+
+func set_player(name: String, color: Color) -> void:
+	_player_name = name
+	_player_color = color
+	stats_lbl.add_theme_color_override("font_color", _player_color)
 
 func setup_responsive_ui() -> void:
 	# Create scaled font for all labels
