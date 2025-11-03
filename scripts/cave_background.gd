@@ -27,7 +27,7 @@ func create_parallax_background() -> void:
 
 	var far_map := TileMap.new()
 	far_map.name = "ParallaxFarMap"
-	far_map.set("modulate", Color(0.85, 0.9, 1.0, 0.2))
+	far_map.set("modulate", Color(0.85, 0.9, 1.0, 0.4))
 	far_map.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var far_mat := CanvasItemMaterial.new()
 	far_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MIX
@@ -59,7 +59,7 @@ func create_parallax_background() -> void:
 
 	var mid_map := TileMap.new()
 	mid_map.name = "ParallaxMidMap"
-	mid_map.set("modulate", Color(0.8, 0.8, 0.9, 0.2))
+	mid_map.set("modulate", Color(0.8, 0.8, 0.9, 0.3))
 	mid_map.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var mid_mat := CanvasItemMaterial.new()
 	mid_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MIX
@@ -89,7 +89,7 @@ func create_ice_floor() -> void:
 	var tilemap := TileMap.new()
 	tilemap.name = "TileMapIce"
 	tilemap.set("z_index", 1)
-	tilemap.set("modulate", Color(1, 1, 1, 0.1))
+	tilemap.set("modulate", Color(1, 1, 1, 0.5))
 	tilemap.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var shader := Shader.new()
 	shader.code = "shader_type canvas_item;\nrender_mode blend_mix, unshaded;\nvoid fragment(){\n\tCOLOR *= texture(TEXTURE, UV);\n}\n"
@@ -144,6 +144,15 @@ func _is_graffiti_allowed() -> bool:
 		return false
 	return true
 
+func _is_graffiti_second_row() -> bool:
+	var p := get_parent()
+	if p == null:
+		return false
+	var n := str(p.name)
+	if n == "Main" or n == "ChallengeTwo" or n == "ChallengeThree":
+		return true
+	return false
+
 func place_graffiti_on_edges(world_w: int, world_h: int) -> void:
 	var paths: Array[String] = []
 	for i in range(1, 21):
@@ -187,3 +196,39 @@ func place_graffiti_on_edges(world_w: int, world_h: int) -> void:
 		spr.position = pos
 		add_child(spr)
 		placed_rects.append(rect)
+
+	if _is_graffiti_second_row():
+		var idxs2: Array[int] = []
+		for i in range(paths.size()):
+			idxs2.append(i)
+		idxs2.shuffle()
+		var count2: int = min(3, idxs2.size())
+		var row_gap := 512.0 + 16.0
+		var y2 : float = max(maxy - row_gap, miny)
+		for n in range(count2):
+			var tex2 := load(paths[idxs2[n]]) as Texture2D
+			if tex2 == null:
+				continue
+			var pos2 := Vector2.ZERO
+			var rect2 := Rect2()
+			var found2 := false
+			for _t in range(50):
+				pos2 = Vector2(minx + (maxx - minx) * randf(), y2)
+				rect2 = Rect2(pos2 - Vector2(256, 256), Vector2(512, 512))
+				var overlaps2 := false
+				for r in placed_rects:
+					if rect2.intersects(r, true):
+						overlaps2 = true
+						break
+				if not overlaps2:
+					found2 = true
+					break
+			if not found2:
+				continue
+			var spr2 := Sprite2D.new()
+			spr2.texture = tex2
+			spr2.set("z_index", 2)
+			spr2.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+			spr2.position = pos2
+			add_child(spr2)
+			placed_rects.append(rect2)

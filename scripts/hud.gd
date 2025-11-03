@@ -25,6 +25,9 @@ func set_hold(is_held: bool) -> void:
 	hold.visible = false
 
 func set_stats(stats: Dictionary) -> void:
+	if _player_name != "":
+		stats_lbl.visible = true
+		return
 	var attempts: int = int(stats.get("attempts", 0))
 	var completed: int = int(stats.get("completed_count", 0))
 	var best_v: Variant = stats.get("best_time_seconds", null)
@@ -39,6 +42,15 @@ func set_player(name: String, color: Color) -> void:
 	_player_name = name
 	_player_color = color
 	stats_lbl.add_theme_color_override("font_color", _player_color)
+	if _player_name != "":
+		stats_lbl.visible = true
+		stats_lbl.text = "%s  %.2f s" % [_player_name, 0.0]
+
+func set_run_time(t: float) -> void:
+	if _player_name != "":
+		stats_lbl.visible = true
+		stats_lbl.add_theme_color_override("font_color", _player_color)
+		stats_lbl.text = "%s  %.2f s" % [_player_name, t]
 
 func setup_responsive_ui() -> void:
 	# Create scaled font for all labels

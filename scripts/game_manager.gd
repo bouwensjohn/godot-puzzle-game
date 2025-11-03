@@ -14,12 +14,14 @@ var selection_layer: CanvasLayer
 var current_challenge_node: Node
 var mode_two_players := false
 var player_names: Array[String] = ["Player 1", "Player 2"]
-var player_colors: Array[Color] = [Color(0.95, 0.25, 0.25), Color(0.25, 0.6, 1.0)]
+var player_colors: Array[Color] = [Color(0.85, 0.35, 0.35), Color(0.35, 0.65, 0.95)]
 var player_scores: Array[int] = [0, 0]
 var current_player_idx := 0
 var run_elapsed := 0.0
 var run_active := false
 var last_times: Array[float] = [-1.0, -1.0]
+var _prev_thrust := false
+var awaiting_ok := false
 
 func _ready() -> void:
 	# Initialize challenges array for future expansion
@@ -117,7 +119,8 @@ func load_current_challenge() -> void:
 		current_challenge_node = game_instance
 		add_child(game_instance)
 		run_elapsed = 0.0
-		run_active = true
+		run_active = not mode_two_players
+		_prev_thrust = false
 		await get_tree().process_frame
 		_apply_player_to_hud()
 	else:
@@ -201,14 +204,14 @@ func _on_completion_timer_timeout() -> void:
 				winner_msg = "Tie: both +1 point\n" + player_names[0] + ": " + String.num(p0, 2) + "s  vs  " + player_names[1] + ": " + String.num(p1, 2) + "s"
 			elif p0 < p1:
 				player_scores[0] += 1
-				winner_msg = player_names[0] + " wins +1\n" + String.num(p0, 2) + "s vs " + String.num(p1, 2) + "s"
+				winner_msg = player_names[0] + " wins and gets 1 point\n" + String.num(p0, 2) + "s vs " + String.num(p1, 2) + "s"
 			else:
 				player_scores[1] += 1
-				winner_msg = player_names[1] + " wins +1\n" + String.num(p1, 2) + "s vs " + String.num(p0, 2) + "s"
+				winner_msg = player_names[1] + " wins and gets 1 point\n" + String.num(p1, 2) + "s vs " + String.num(p0, 2) + "s"
 		if fade_text:
 			fade_text.text = winner_msg
 			fade_text.add_theme_color_override("font_color", Color(1,1,1))
-		await get_tree().create_timer(1.6).timeout
+		await _await_ok()
 		last_times = [-1.0, -1.0]
 		current_player_idx = 0
 		current_challenge_index += 1
@@ -223,12 +226,18 @@ func _on_completion_timer_timeout() -> void:
 				tw3.tween_property(fade_rect, "modulate:a", 0.0, 0.8)
 		else:
 			if fade_text:
-				var final_msg: String = player_names[0] + ": " + str(player_scores[0]) + "\n" + player_names[1] + ": " + str(player_scores[1])
+				var final_msg: String = player_names[0] + ": " + str(player_scores[0]) + " points\n" + player_names[1] + ": " + str(player_scores[1]) + " points\n"
 				var winner: String = ""
 				if player_scores[0] > player_scores[1]: winner = player_names[0]
 				elif player_scores[1] > player_scores[0]: winner = player_names[1]
 				else: winner = "Tie"
 				fade_text.text = "Final Score\n" + final_msg + "\nWinner: " + winner
+			await _await_ok()
+			if fade_text:
+				fade_text.text = ""
+			if fade_rect:
+				var twf := create_tween()
+				twf.tween_property(fade_rect, "modulate:a", 0.0, 0.8)
 
 func get_current_challenge_info() -> Dictionary:
 	if current_challenge_index < challenges.size():
@@ -257,6 +266,37 @@ func _find_hud(n: Node) -> Node:
 func _process(delta: float) -> void:
 	if run_active and not is_transitioning:
 		run_elapsed += delta
+		if mode_two_players:
+			_update_hud_run_time()
+	elif mode_two_players and not is_transitioning and not awaiting_ok:
+		_check_start_on_first_thrust()
+
+func _update_hud_run_time() -> void:
+	if not current_challenge_node:
+		return
+	var hud := _find_hud(current_challenge_node)
+	if hud and hud.has_method("set_run_time"):
+		hud.call("set_run_time", run_elapsed)
+
+func _await_ok() -> void:
+	awaiting_ok = true
+	var btn := Button.new()
+	btn.text = "OK"
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.custom_minimum_size = Vector2(180, 64)
+	btn.set_anchors_preset(Control.PRESET_CENTER)
+	btn.offset_top = 140
+	fade_layer.add_child(btn)
+	btn.grab_focus()
+	await btn.pressed
+	btn.queue_free()
+	awaiting_ok = false
+
+func _check_start_on_first_thrust() -> void:
+	var pressed := Input.is_action_pressed("ui_up")
+	if pressed and not _prev_thrust:
+		run_active = true
+	_prev_thrust = pressed
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -301,6 +341,18 @@ func setup_fade_overlay() -> void:
 	fade_rect.offset_right = 0
 	fade_rect.offset_bottom = 0
 	fade_layer.add_child(fade_rect)
+	var swirl_tex := load("res://textures/Swirl.png") as Texture2D
+	if swirl_tex:
+		var swirl_holder := CenterContainer.new()
+		swirl_holder.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		swirl_holder.offset_top = 24
+		swirl_holder.custom_minimum_size = Vector2(0, 200)
+		fade_rect.add_child(swirl_holder)
+		var swirl := TextureRect.new()
+		swirl.texture = swirl_tex
+		swirl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		swirl.custom_minimum_size = Vector2(256, 256)
+		swirl_holder.add_child(swirl)
 	fade_text = Label.new()
 	fade_text.text = ""
 	fade_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -324,30 +376,44 @@ func show_player_mode_prompt() -> void:
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.add_child(center)
+	var stack := VBoxContainer.new()
+	stack.alignment = BoxContainer.ALIGNMENT_CENTER
+	stack.add_theme_constant_override("separation", 12)
+	stack.set_anchors_preset(Control.PRESET_CENTER)
+	center.add_child(stack)
+	var swirl_tex1 := load("res://textures/Swirl.png") as Texture2D
+	if swirl_tex1:
+		var swirl1 := TextureRect.new()
+		swirl1.texture = swirl_tex1
+		swirl1.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		swirl1.custom_minimum_size = Vector2(320, 320)
+		stack.add_child(swirl1)
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(520, 220)
-	center.add_child(panel)
+	stack.add_child(panel)
 	var vb := VBoxContainer.new()
 	vb.alignment = BoxContainer.ALIGNMENT_CENTER
-	vb.custom_minimum_size = Vector2(480, 160)
+	vb.add_theme_constant_override("separation", 12)
 	panel.add_child(vb)
 	var ask := Label.new()
 	ask.text = "How many players (1 or 2)?"
 	ask.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ask.add_theme_font_size_override("font_size", 36)
+	ask.add_theme_font_size_override("font_size", 48)
 	vb.add_child(ask)
 	var hb := HBoxContainer.new()
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	hb.add_theme_constant_override("separation", 24)
 	vb.add_child(hb)
 	var one := Button.new()
-	one.text = "1 Player [1]"
+	one.text = "One Player [1]"
 	one.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	one.add_theme_font_size_override("font_size", 36)
 	one.pressed.connect(_on_pick_one_player)
 	hb.add_child(one)
 	var two := Button.new()
-	two.text = "2 Players [2]"
+	two.text = "Two Players [2]"
 	two.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	two.add_theme_font_size_override("font_size", 36)
 	two.pressed.connect(_on_pick_two_players)
 	hb.add_child(two)
 
@@ -384,9 +450,21 @@ func show_name_entry() -> void:
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.add_child(center)
+	var stack2 := VBoxContainer.new()
+	stack2.alignment = BoxContainer.ALIGNMENT_CENTER
+	stack2.add_theme_constant_override("separation", 12)
+	stack2.set_anchors_preset(Control.PRESET_CENTER)
+	center.add_child(stack2)
+	var swirl_tex2 := load("res://textures/Swirl.png") as Texture2D
+	if swirl_tex2:
+		var swirl2 := TextureRect.new()
+		swirl2.texture = swirl_tex2
+		swirl2.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		swirl2.custom_minimum_size = Vector2(320, 320)
+		stack2.add_child(swirl2)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(520, 260)
-	center.add_child(panel)
+	panel.custom_minimum_size = Vector2(640, 320)
+	stack2.add_child(panel)
 	var vb := VBoxContainer.new()
 	vb.alignment = BoxContainer.ALIGNMENT_CENTER
 	vb.add_theme_constant_override("separation", 12)
@@ -394,21 +472,26 @@ func show_name_entry() -> void:
 	var title := Label.new()
 	title.text = "Enter Player Names"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_font_size_override("font_size", 42)
 	vb.add_child(title)
 	var l1 := LineEdit.new()
 	l1.placeholder_text = "Player 1 Name"
 	l1.text = player_names[0]
 	l1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l1.add_theme_font_size_override("font_size", 32)
 	vb.add_child(l1)
 	var l2 := LineEdit.new()
 	l2.placeholder_text = "Player 2 Name"
 	l2.text = player_names[1]
 	l2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l2.add_theme_font_size_override("font_size", 32)
 	vb.add_child(l2)
+	l1.focus_entered.connect(func(): l1.select_all())
+	l2.focus_entered.connect(func(): l2.select_all())
 	var start := Button.new()
 	start.text = "Start"
 	start.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	start.add_theme_font_size_override("font_size", 36)
 	start.pressed.connect(func():
 		player_names[0] = l1.text.strip_edges()
 		if player_names[0] == "": player_names[0] = "Player 1"
