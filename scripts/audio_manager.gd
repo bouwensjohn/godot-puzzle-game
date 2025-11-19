@@ -5,6 +5,8 @@ var _release: AudioStreamPlayer
 var _engine: AudioStreamPlayer
 var _triumph: AudioStreamPlayer
 var _bgm: AudioStreamPlayer
+var _skid: AudioStreamPlayer
+var _bark: AudioStreamPlayer
 
 func _ready() -> void:
 	_refresh_nodes()
@@ -16,21 +18,58 @@ func _refresh_nodes() -> void:
 	var root := get_tree().get_current_scene()
 	if root == null:
 		return
-	_click = root.get_node_or_null("Audio/Click")
-	_release = root.get_node_or_null("Audio/Release")
-	_engine = root.get_node_or_null("Audio/Engine")
+	# Only override from scene if nodes actually exist; otherwise keep existing players
+	var click_node := root.get_node_or_null("Audio/Click")
+	if click_node:
+		_click = click_node
+	var release_node := root.get_node_or_null("Audio/Release")
+	if release_node:
+		_release = release_node
+	var engine_node := root.get_node_or_null("Audio/Engine")
+	if engine_node:
+		_engine = engine_node
+	var triumph_node := root.get_node_or_null("Audio/Triumph")
+	if triumph_node:
+		_triumph = triumph_node
+	var skid_node := root.get_node_or_null("Audio/Skid")
+	if skid_node:
+		_skid = skid_node
+	var bark_node := root.get_node_or_null("Audio/Bark")
+	if bark_node:
+		_bark = bark_node
 	
-	# Create engine player if it doesn't exist in scene
+	var created_any := false
+	# Create engine player if it doesn't exist at all
 	if not _engine:
 		_engine = AudioStreamPlayer.new()
 		add_child(_engine)
-		_engine.stream = _generate_beep(200.0, 1.0)
-		_engine.volume_db = -25.0
+		_engine.volume_db = -8.0
+		created_any = true
 	
 	# Create triumph player if it doesn't exist
 	if not _triumph:
 		_triumph = AudioStreamPlayer.new()
 		add_child(_triumph)
+		_triumph.volume_db = -3.0
+		created_any = true
+	
+	# Create skid player if it doesn't exist
+	if not _skid:
+		_skid = AudioStreamPlayer.new()
+		add_child(_skid)
+		_skid.volume_db = -30.0
+		created_any = true
+	
+	# Create bark/notice player if it doesn't exist
+	if not _bark:
+		_bark = AudioStreamPlayer.new()
+		add_child(_bark)
+		_bark.volume_db = -3.0
+		created_any = true
+	
+	# If we created any new players, ensure their streams are loaded
+	if created_any:
+		_create_beep_sounds()
 
 func _create_beep_sounds() -> void:
 	# Create simple beep sounds using AudioStreamWAV
@@ -42,14 +81,30 @@ func _create_beep_sounds() -> void:
 		_release.stream = _generate_beep(600.0, 0.12)
 		_release.volume_db = -6.0
 	
+	# Use sampled sounds from the sounds directory for engine/throttle, triumph, skid and bark
 	if _engine:
-		_engine.stream = _generate_beep(200.0, 1.0)
-		_engine.volume_db = -25.0  # Start at idle volume instead of muted
-	
-	# Create triumph sound
+		var engine_stream: AudioStream = load("res://sounds/throttle.ogg") as AudioStream
+		if engine_stream:
+			_engine.stream = engine_stream
+			_engine.volume_db = -8.0
+		
 	if _triumph:
-		_triumph.stream = _generate_triumph_sound()
-		_triumph.volume_db = -3.0
+		var cheer_stream: AudioStream = load("res://sounds/cheer.ogg") as AudioStream
+		if cheer_stream:
+			_triumph.stream = cheer_stream
+			_triumph.volume_db = -3.0
+	
+	if _skid:
+		var skid_stream: AudioStream = load("res://sounds/tirescreech.ogg") as AudioStream
+		if skid_stream:
+			_skid.stream = skid_stream
+			_skid.volume_db = -8.0
+	
+	if _bark:
+		var bark_stream: AudioStream = load("res://sounds/bark2.ogg") as AudioStream
+		if bark_stream:
+			_bark.stream = bark_stream
+			_bark.volume_db = -3.0
 
 func _generate_beep(frequency: float, duration: float) -> AudioStreamWAV:
 	var sample_rate := 22050
@@ -141,16 +196,41 @@ func thrust(on: bool) -> void:
 	if _engine == null: _refresh_nodes()
 	if _engine and _engine.stream:
 		if on:
-			_engine.volume_db = -12.0  # Full throttle volume
+			_engine.volume_db = -8.0
 			if not _engine.playing:
 				_engine.play()
 		else:
 			# Stop engine sound completely when not throttling
 			_engine.stop()
 
+func skid(on: bool) -> void:
+	if _skid == null: _refresh_nodes()
+	if _skid and _skid.stream:
+		if on:
+			if not _skid.playing:
+				_skid.play()
+		else:
+			_skid.stop()
+
 func triumph() -> void:
+	# Duck background music slightly so cheer is clearly audible
+	if _bgm and _bgm.stream:
+		_bgm.volume_db = -20.0
 	if _triumph and _triumph.stream:
+		# Ensure we restore BGM when triumph finishes
+		if not _triumph.is_connected("finished", Callable(self, "_on_triumph_finished")):
+			_triumph.finished.connect(Callable(self, "_on_triumph_finished"))
 		_triumph.play()
+
+func _on_triumph_finished() -> void:
+	# Restore background music level after cheer
+	if _bgm and _bgm.stream:
+		_bgm.volume_db = -12.0
+
+func bark_notice() -> void:
+	if _bark == null: _refresh_nodes()
+	if _bark and _bark.stream:
+		_bark.play()
 
 func _setup_bgm() -> void:
 	if not _bgm:

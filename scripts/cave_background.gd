@@ -140,95 +140,48 @@ func _is_graffiti_allowed() -> bool:
 	if p == null:
 		return true
 	var n := str(p.name)
-	if n == "ChallengeSix" or n == "ChallengeEight" or n == "ChallengeNine":
+	if n == "ChallengeFive" or n == "ChallengeEight" or n == "ChallengeNine":
 		return false
 	return true
-
-func _is_graffiti_second_row() -> bool:
-	var p := get_parent()
-	if p == null:
-		return false
-	var n := str(p.name)
-	if n == "Main" or n == "ChallengeTwo" or n == "ChallengeThree":
-		return true
-	return false
 
 func place_graffiti_on_edges(world_w: int, world_h: int) -> void:
 	var paths: Array[String] = []
 	for i in range(1, 21):
 		var p := "res://textures/graffiti/Graffity_512_%02d.png" % i
 		paths.append(p)
-	var idxs: Array[int] = []
-	for i in range(paths.size()):
-		idxs.append(i)
-	idxs.shuffle()
-	var count: int = min(3, idxs.size())
-	var margin := 256.0
-	var minx := margin
-	var maxx := float(world_w) - margin
-	var miny := margin
-	var maxy := float(world_h) - margin
-	var placed_rects: Array[Rect2] = []
-	for n in range(count):
-		var tex := load(paths[idxs[n]]) as Texture2D
-		if tex == null:
-			continue
-		var pos := Vector2.ZERO
-		var rect := Rect2()
-		var found := false
-		for _t in range(50):
-			pos = Vector2(minx + (maxx - minx) * randf(), maxy)
-			rect = Rect2(pos - Vector2(256, 256), Vector2(512, 512))
-			var overlaps := false
-			for r in placed_rects:
-				if rect.intersects(r, true):
-					overlaps = true
-					break
-			if not overlaps:
-				found = true
-				break
-		if not found:
-			continue
-		var spr := Sprite2D.new()
-		spr.texture = tex
-		spr.set("z_index", 2)
-		spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-		spr.position = pos
-		add_child(spr)
-		placed_rects.append(rect)
 
-	if _is_graffiti_second_row():
-		var idxs2: Array[int] = []
-		for i in range(paths.size()):
-			idxs2.append(i)
-		idxs2.shuffle()
-		var count2: int = min(3, idxs2.size())
-		var row_gap := 512.0 + 16.0
-		var y2 : float = max(maxy - row_gap, miny)
-		for n in range(count2):
-			var tex2 := load(paths[idxs2[n]]) as Texture2D
-			if tex2 == null:
-				continue
-			var pos2 := Vector2.ZERO
-			var rect2 := Rect2()
-			var found2 := false
-			for _t in range(50):
-				pos2 = Vector2(minx + (maxx - minx) * randf(), y2)
-				rect2 = Rect2(pos2 - Vector2(256, 256), Vector2(512, 512))
-				var overlaps2 := false
-				for r in placed_rects:
-					if rect2.intersects(r, true):
-						overlaps2 = true
-						break
-				if not overlaps2:
-					found2 = true
-					break
-			if not found2:
-				continue
-			var spr2 := Sprite2D.new()
-			spr2.texture = tex2
-			spr2.set("z_index", 2)
-			spr2.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-			spr2.position = pos2
-			add_child(spr2)
-			placed_rects.append(rect2)
+	if paths.is_empty():
+		return
+
+	var idx := int(randi()) % paths.size()
+	var tex := load(paths[idx]) as Texture2D
+	if tex == null:
+		return
+
+	var parent_name := ""
+	var parent := get_parent()
+	if parent != null:
+		parent_name = str(parent.name)
+
+	var scale_mult := 2.0
+
+	var margin := 256.0
+	var half_w := (tex.get_width() * scale_mult) * 0.5
+	var minx := margin + half_w
+	var maxx := float(world_w) - margin - half_w
+	var maxy := float(world_h) - margin
+	if maxx < minx:
+		minx = float(world_w) * 0.5
+		maxx = minx
+
+	var half_h := (tex.get_height() * scale_mult) * 0.6
+	var y_pos := float(world_h) - half_h 
+	var pos := Vector2(minx + (maxx - minx) * randf(), y_pos)
+
+	var spr := Sprite2D.new()
+	spr.texture = tex
+	spr.set("z_index", 2)
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	spr.position = pos
+	spr.scale = Vector2(scale_mult, scale_mult)
+	add_child(spr)

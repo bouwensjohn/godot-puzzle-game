@@ -159,6 +159,14 @@ func _physics_process(delta: float) -> void:
 				var li := _pick_linger_bumper_for_gid(_fk_prev_gid)
 				if li >= 0:
 					_room_linger_bumper[_fk_prev_gid] = li
+		if fk_gid >= 0:
+			var am_bark := get_node_or_null("/root/AudioManager")
+			if am_bark:
+				# Bark once per bumper in this room group on every entry
+				for i in range(_bumpers.size()):
+					var b_gid := _room_group_id[_bumper_room_idx[i]]
+					if b_gid == fk_gid:
+						am_bark.call("bark_notice")
 		_fk_prev_gid = fk_gid
 	for i in range(_bumpers.size()):
 		_bumper_active[i] = false

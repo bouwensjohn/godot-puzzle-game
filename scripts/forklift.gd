@@ -36,10 +36,12 @@ func update_move(delta: float) -> void:
 	_trail_hist.push_back({"t": _trail_time, "p": global_position, "r": global_rotation})
 	while _trail_hist.size() > 0 and (_trail_time - (_trail_hist[0]["t"] as float)) > 2.5:
 		_trail_hist.pop_front()
-	
+		
 	# audio hook
 	var am := get_node_or_null("/root/AudioManager")
-	if am: am.thrust(thrusting)
+	if am:
+		am.thrust(thrusting)
+		am.skid(is_skidding)
 
 func apply_angular_drag() -> void:
 	if velocity.length() < 10.0:  # Skip drag for very slow movement

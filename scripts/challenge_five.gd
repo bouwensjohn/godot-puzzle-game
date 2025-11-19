@@ -27,7 +27,7 @@ const THICK_MIN := 30.0               # min wall thickness
 const THICK_MAX := 56.0               # max wall thickness
 const OUTER_THICK := 60.0             # frame thickness
 const RNG_SEED := 31415               # change for a different layout keeping same rules
-const CH5_WALL_COLOR := Color(0.26, 0.48, 0.72, 0.2)
+const CH5_WALL_COLOR := Color(0.26, 0.48, 0.72, 0.4)
 
 # Maze area (centered in the world); leave margins for camera movement
 var _maze_left: float

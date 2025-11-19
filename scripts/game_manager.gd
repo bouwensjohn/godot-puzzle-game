@@ -201,13 +201,13 @@ func _on_completion_timer_timeout() -> void:
 			if abs(p0 - p1) < 0.0001:
 				player_scores[0] += 1
 				player_scores[1] += 1
-				winner_msg = "Tie: both +1 point\n" + player_names[0] + ": " + String.num(p0, 2) + "s  vs  " + player_names[1] + ": " + String.num(p1, 2) + "s"
+				winner_msg = "Tie: both +1 point\n" + player_names[0] + ": " + String.num(p0, 2) + " seconds  vs  " + player_names[1] + ": " + String.num(p1, 2) + " seconds"
 			elif p0 < p1:
 				player_scores[0] += 1
-				winner_msg = player_names[0] + " wins and gets 1 point\n" + String.num(p0, 2) + "s vs " + String.num(p1, 2) + "s"
+				winner_msg = player_names[0] + " wins and gets a point\n" + String.num(p0, 2) + " seconds vs " + String.num(p1, 2) + " seconds"
 			else:
 				player_scores[1] += 1
-				winner_msg = player_names[1] + " wins and gets 1 point\n" + String.num(p1, 2) + "s vs " + String.num(p0, 2) + "s"
+				winner_msg = player_names[1] + " wins and gets a point\n" + String.num(p1, 2) + " seconds vs " + String.num(p0, 2) + " seconds"
 		if fade_text:
 			fade_text.text = winner_msg
 			fade_text.add_theme_color_override("font_color", Color(1,1,1))
@@ -238,6 +238,8 @@ func _on_completion_timer_timeout() -> void:
 			if fade_rect:
 				var twf := create_tween()
 				twf.tween_property(fade_rect, "modulate:a", 0.0, 0.8)
+			await get_tree().process_frame
+			_reset_to_start()
 
 func get_current_challenge_info() -> Dictionary:
 	if current_challenge_index < challenges.size():
@@ -283,9 +285,14 @@ func _await_ok() -> void:
 	var btn := Button.new()
 	btn.text = "OK"
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	btn.custom_minimum_size = Vector2(180, 64)
+	btn.custom_minimum_size = Vector2(200, 72)
+	btn.add_theme_font_size_override("font_size", 40)
+	var playful_font_path := "res://fonts/A Gentle Touch.ttf"
+	var playful_font := load(playful_font_path)
+	if playful_font:
+		btn.add_theme_font_override("font", playful_font)
 	btn.set_anchors_preset(Control.PRESET_CENTER)
-	btn.offset_top = 140
+	btn.offset_top = 240
 	fade_layer.add_child(btn)
 	btn.grab_focus()
 	await btn.pressed
@@ -358,7 +365,14 @@ func setup_fade_overlay() -> void:
 	fade_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	fade_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	fade_text.set_anchors_preset(Control.PRESET_FULL_RECT)
-	fade_text.add_theme_font_size_override("font_size", 48)
+	fade_text.add_theme_font_size_override("font_size", 56)
+	fade_text.add_theme_color_override("font_color", Color(1, 1, 1))
+	fade_text.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	fade_text.add_theme_constant_override("outline_size", 5)
+	var playful_font_path := "res://fonts/A Gentle Touch.ttf"
+	var playful_font := load(playful_font_path)
+	if playful_font:
+		fade_text.add_theme_font_override("font", playful_font)
 	fade_layer.add_child(fade_text)
 
 func show_player_mode_prompt() -> void:
@@ -399,6 +413,10 @@ func show_player_mode_prompt() -> void:
 	ask.text = "How many players (1 or 2)?"
 	ask.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ask.add_theme_font_size_override("font_size", 48)
+	var playful_font_path := "res://fonts/A Gentle Touch.ttf"
+	var playful_font := load(playful_font_path)
+	if playful_font:
+		ask.add_theme_font_override("font", playful_font)
 	vb.add_child(ask)
 	var hb := HBoxContainer.new()
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -408,12 +426,20 @@ func show_player_mode_prompt() -> void:
 	one.text = "One Player [1]"
 	one.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	one.add_theme_font_size_override("font_size", 36)
+	# var playful_font_path := "res://fonts/A Gentle Touch.ttf"
+	# var playful_font := load(playful_font_path)
+	if playful_font:
+		one.add_theme_font_override("font", playful_font)
 	one.pressed.connect(_on_pick_one_player)
 	hb.add_child(one)
 	var two := Button.new()
 	two.text = "Two Players [2]"
 	two.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	two.add_theme_font_size_override("font_size", 36)
+	# var playful_font_path := "res://fonts/A Gentle Touch.ttf"
+	# var playful_font := load(playful_font_path)
+	if playful_font:
+		two.add_theme_font_override("font", playful_font)
 	two.pressed.connect(_on_pick_two_players)
 	hb.add_child(two)
 
@@ -473,18 +499,26 @@ func show_name_entry() -> void:
 	title.text = "Enter Player Names"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 42)
+	var playful_font_path2 := "res://fonts/A Gentle Touch.ttf"
+	var playful_font2 := load(playful_font_path2)
+	if playful_font2:
+		title.add_theme_font_override("font", playful_font2)
 	vb.add_child(title)
 	var l1 := LineEdit.new()
 	l1.placeholder_text = "Player 1 Name"
 	l1.text = player_names[0]
 	l1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	l1.add_theme_font_size_override("font_size", 32)
+	if playful_font2:
+		l1.add_theme_font_override("font", playful_font2)
 	vb.add_child(l1)
 	var l2 := LineEdit.new()
 	l2.placeholder_text = "Player 2 Name"
 	l2.text = player_names[1]
 	l2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	l2.add_theme_font_size_override("font_size", 32)
+	if playful_font2:
+		l2.add_theme_font_override("font", playful_font2)
 	vb.add_child(l2)
 	l1.focus_entered.connect(func(): l1.select_all())
 	l2.focus_entered.connect(func(): l2.select_all())
@@ -492,6 +526,8 @@ func show_name_entry() -> void:
 	start.text = "Start"
 	start.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	start.add_theme_font_size_override("font_size", 36)
+	if playful_font2:
+		start.add_theme_font_override("font", playful_font2)
 	start.pressed.connect(func():
 		player_names[0] = l1.text.strip_edges()
 		if player_names[0] == "": player_names[0] = "Player 1"
@@ -508,3 +544,24 @@ func show_name_entry() -> void:
 	)
 	vb.add_child(start)
 	l1.grab_focus()
+
+func _reset_to_start() -> void:
+	player_scores = [0, 0]
+	last_times = [-1.0, -1.0]
+	current_player_idx = 0
+	run_elapsed = 0.0
+	run_active = false
+	_prev_thrust = false
+	awaiting_ok = false
+	mode_two_players = false
+	player_names = ["Player 1", "Player 2"]
+	current_challenge_index = 0
+	if fade_text:
+		fade_text.text = ""
+	if fade_rect:
+		fade_rect.modulate.a = 0.0
+	for child in get_children():
+		if child != challenge_completed_timer and child != fade_layer:
+			child.queue_free()
+	await get_tree().process_frame
+	show_player_mode_prompt()
