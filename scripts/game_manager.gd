@@ -22,6 +22,9 @@ var run_active := false
 var last_times: Array[float] = [-1.0, -1.0]
 var _prev_thrust := false
 var awaiting_ok := false
+var help_layer: CanvasLayer
+var help_root: Control
+var help_visible := false
 
 func _ready() -> void:
 	# Initialize challenges array for future expansion
@@ -308,6 +311,10 @@ func _check_start_on_first_thrust() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		var code = event.keycode
+		if code == KEY_H:
+			_toggle_help()
+			get_viewport().set_input_as_handled()
+			return
 		if selection_layer and selection_layer.is_inside_tree():
 			if code == KEY_1:
 				_on_pick_one_player()
@@ -324,6 +331,184 @@ func _unhandled_input(event: InputEvent) -> void:
 			idx = 9
 		if idx >= 0 and idx < challenges.size():
 			jump_to_challenge(idx)
+
+func _toggle_help() -> void:
+	if help_visible:
+		_hide_help()
+	else:
+		_show_help()
+
+func _ensure_help_layer() -> void:
+	if help_layer and help_layer.is_inside_tree():
+		return
+	help_layer = CanvasLayer.new()
+	help_layer.layer = 120
+	add_child(help_layer)
+	help_root = Control.new()
+	help_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	help_layer.add_child(help_root)
+	var scrim := ColorRect.new()
+	scrim.color = Color(0, 0, 0, 0.6)
+	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
+	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	help_root.add_child(scrim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	help_root.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(1040, 700)
+	center.add_child(panel)
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 20)
+	panel.add_child(vb)
+	var title := Label.new()
+	title.text = "Help & Settings"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 64)
+	var playful_font_path := "res://fonts/A Gentle Touch.ttf"
+	var playful_font := load(playful_font_path)
+	if playful_font:
+		title.add_theme_font_override("font", playful_font)
+	vb.add_child(title)
+	var controls := Label.new()
+	controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	controls.add_theme_font_size_override("font_size", 36)
+	controls.text = "Arrows: steer (Left/Right), throttle (Up)\nSpace: grab/release piece\nR: reset challenge\n1/2: select players when prompted\n0-9: jump to challenge\nH: toggle this help"
+	vb.add_child(controls)
+	var sep := HSeparator.new()
+	vb.add_child(sep)
+	var vol_title := Label.new()
+	vol_title.text = "Volumes (dB)"
+	vol_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vol_title.add_theme_font_size_override("font_size", 42)
+	if playful_font:
+		vol_title.add_theme_font_override("font", playful_font)
+	vb.add_child(vol_title)
+	var grid := VBoxContainer.new()
+	grid.add_theme_constant_override("separation", 10)
+	vb.add_child(grid)
+	var am := get_node_or_null("/root/AudioManager")
+	var engine_default := -8.0
+	var skid_default := -16.0
+	var bgm_default := -12.0
+	if am:
+		if am.has_method("get_engine_volume_db"): engine_default = am.call("get_engine_volume_db")
+		if am.has_method("get_skid_volume_db"): skid_default = am.call("get_skid_volume_db")
+		if am.has_method("get_bgm_volume_db"): bgm_default = am.call("get_bgm_volume_db")
+	var engine_row := HBoxContainer.new()
+	engine_row.add_theme_constant_override("separation", 12)
+	var engine_label := Label.new()
+	engine_label.text = "Throttle"
+	engine_label.custom_minimum_size = Vector2(180, 0)
+	engine_label.add_theme_font_size_override("font_size", 32)
+	if playful_font:
+		engine_label.add_theme_font_override("font", playful_font)
+	engine_row.add_child(engine_label)
+	var engine_slider := HSlider.new()
+	engine_slider.min_value = -40.0
+	engine_slider.max_value = 0.0
+	engine_slider.step = 1.0
+	engine_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	engine_slider.value = engine_default
+	engine_row.add_child(engine_slider)
+	var engine_val := Label.new()
+	engine_val.text = String.num(engine_slider.value, 0) + " dB"
+	engine_val.custom_minimum_size = Vector2(80, 0)
+	engine_val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	engine_val.add_theme_font_size_override("font_size", 28)
+	if playful_font:
+		engine_val.add_theme_font_override("font", playful_font)
+	engine_row.add_child(engine_val)
+	grid.add_child(engine_row)
+	engine_slider.value_changed.connect(func(v):
+		engine_val.text = String.num(v, 0) + " dB"
+		var am2 := get_node_or_null("/root/AudioManager")
+		if am2 and am2.has_method("set_engine_volume_db"):
+			am2.call("set_engine_volume_db", v)
+	)
+	var skid_row := HBoxContainer.new()
+	skid_row.add_theme_constant_override("separation", 12)
+	var skid_label := Label.new()
+	skid_label.text = "Skid"
+	skid_label.custom_minimum_size = Vector2(180, 0)
+	skid_label.add_theme_font_size_override("font_size", 32)
+	if playful_font:
+		skid_label.add_theme_font_override("font", playful_font)
+	skid_row.add_child(skid_label)
+	var skid_slider := HSlider.new()
+	skid_slider.min_value = -40.0
+	skid_slider.max_value = 0.0
+	skid_slider.step = 1.0
+	skid_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skid_slider.value = skid_default
+	skid_row.add_child(skid_slider)
+	var skid_val := Label.new()
+	skid_val.text = String.num(skid_slider.value, 0) + " dB"
+	skid_val.custom_minimum_size = Vector2(80, 0)
+	skid_val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	skid_val.add_theme_font_size_override("font_size", 28)
+	if playful_font:
+		skid_val.add_theme_font_override("font", playful_font)
+	skid_row.add_child(skid_val)
+	grid.add_child(skid_row)
+	skid_slider.value_changed.connect(func(v):
+		skid_val.text = String.num(v, 0) + " dB"
+		var am3 := get_node_or_null("/root/AudioManager")
+		if am3 and am3.has_method("set_skid_volume_db"):
+			am3.call("set_skid_volume_db", v)
+	)
+	var bgm_row := HBoxContainer.new()
+	bgm_row.add_theme_constant_override("separation", 12)
+	var bgm_label := Label.new()
+	bgm_label.text = "Music"
+	bgm_label.custom_minimum_size = Vector2(180, 0)
+	bgm_label.add_theme_font_size_override("font_size", 32)
+	if playful_font:
+		bgm_label.add_theme_font_override("font", playful_font)
+	bgm_row.add_child(bgm_label)
+	var bgm_slider := HSlider.new()
+	bgm_slider.min_value = -40.0
+	bgm_slider.max_value = 0.0
+	bgm_slider.step = 1.0
+	bgm_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bgm_slider.value = bgm_default
+	bgm_row.add_child(bgm_slider)
+	var bgm_val := Label.new()
+	bgm_val.text = String.num(bgm_slider.value, 0) + " dB"
+	bgm_val.custom_minimum_size = Vector2(80, 0)
+	bgm_val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	bgm_val.add_theme_font_size_override("font_size", 28)
+	if playful_font:
+		bgm_val.add_theme_font_override("font", playful_font)
+	bgm_row.add_child(bgm_val)
+	grid.add_child(bgm_row)
+	bgm_slider.value_changed.connect(func(v):
+		bgm_val.text = String.num(v, 0) + " dB"
+		var am4 := get_node_or_null("/root/AudioManager")
+		if am4 and am4.has_method("set_bgm_volume_db"):
+			am4.call("set_bgm_volume_db", v)
+	)
+	var close := Button.new()
+	close.text = "Close"
+	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	close.custom_minimum_size = Vector2(220, 72)
+	close.add_theme_font_size_override("font_size", 48)
+	if playful_font:
+		close.add_theme_font_override("font", playful_font)
+	vb.add_child(close)
+	close.pressed.connect(func(): _hide_help())
+
+func _show_help() -> void:
+	_ensure_help_layer()
+	if help_root:
+		help_root.visible = true
+	help_visible = true
+
+func _hide_help() -> void:
+	if help_root:
+		help_root.visible = false
+	help_visible = false
 
 func jump_to_challenge(n: int) -> void:
 	is_transitioning = false

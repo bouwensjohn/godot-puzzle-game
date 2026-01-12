@@ -7,6 +7,11 @@ var _triumph: AudioStreamPlayer
 var _bgm: AudioStreamPlayer
 var _skid: AudioStreamPlayer
 var _bark: AudioStreamPlayer
+var _spot: AudioStreamPlayer
+
+var engine_volume_db := -8.0
+var skid_volume_db := -16.0
+var bgm_volume_db := -12.0
 
 func _ready() -> void:
 	_refresh_nodes()
@@ -37,6 +42,9 @@ func _refresh_nodes() -> void:
 	var bark_node := root.get_node_or_null("Audio/Bark")
 	if bark_node:
 		_bark = bark_node
+	var spot_node := root.get_node_or_null("Audio/Spot")
+	if spot_node:
+		_spot = spot_node
 	
 	var created_any := false
 	# Create engine player if it doesn't exist at all
@@ -67,6 +75,13 @@ func _refresh_nodes() -> void:
 		_bark.volume_db = -3.0
 		created_any = true
 	
+	# Create spot player if it doesn't exist
+	if not _spot:
+		_spot = AudioStreamPlayer.new()
+		add_child(_spot)
+		_spot.volume_db = -6.0
+		created_any = true
+	
 	# If we created any new players, ensure their streams are loaded
 	if created_any:
 		_create_beep_sounds()
@@ -86,7 +101,7 @@ func _create_beep_sounds() -> void:
 		var engine_stream: AudioStream = load("res://sounds/throttle.ogg") as AudioStream
 		if engine_stream:
 			_engine.stream = engine_stream
-			_engine.volume_db = -8.0
+			_engine.volume_db = engine_volume_db
 		
 	if _triumph:
 		var cheer_stream: AudioStream = load("res://sounds/cheer.ogg") as AudioStream
@@ -98,13 +113,19 @@ func _create_beep_sounds() -> void:
 		var skid_stream: AudioStream = load("res://sounds/tirescreech.ogg") as AudioStream
 		if skid_stream:
 			_skid.stream = skid_stream
-			_skid.volume_db = -8.0
+			_skid.volume_db = skid_volume_db
 	
 	if _bark:
 		var bark_stream: AudioStream = load("res://sounds/bark2.ogg") as AudioStream
 		if bark_stream:
 			_bark.stream = bark_stream
 			_bark.volume_db = -3.0
+	
+	if _spot:
+		var spot_stream: AudioStream = load("res://sounds/spot.ogg") as AudioStream
+		if spot_stream:
+			_spot.stream = spot_stream
+			_spot.volume_db = -6.0
 
 func _generate_beep(frequency: float, duration: float) -> AudioStreamWAV:
 	var sample_rate := 22050
@@ -196,7 +217,7 @@ func thrust(on: bool) -> void:
 	if _engine == null: _refresh_nodes()
 	if _engine and _engine.stream:
 		if on:
-			_engine.volume_db = -8.0
+			_engine.volume_db = engine_volume_db
 			if not _engine.playing:
 				_engine.play()
 		else:
@@ -225,12 +246,41 @@ func triumph() -> void:
 func _on_triumph_finished() -> void:
 	# Restore background music level after cheer
 	if _bgm and _bgm.stream:
-		_bgm.volume_db = -12.0
+		_bgm.volume_db = bgm_volume_db
+
+func set_engine_volume_db(v: float) -> void:
+	engine_volume_db = v
+	if _engine:
+		_engine.volume_db = v
+
+func set_skid_volume_db(v: float) -> void:
+	skid_volume_db = v
+	if _skid:
+		_skid.volume_db = v
+
+func set_bgm_volume_db(v: float) -> void:
+	bgm_volume_db = v
+	if _bgm:
+		_bgm.volume_db = v
+
+func get_engine_volume_db() -> float:
+	return engine_volume_db
+
+func get_skid_volume_db() -> float:
+	return skid_volume_db
+
+func get_bgm_volume_db() -> float:
+	return bgm_volume_db
 
 func bark_notice() -> void:
 	if _bark == null: _refresh_nodes()
 	if _bark and _bark.stream:
 		_bark.play()
+
+func spot() -> void:
+	if _spot == null: _refresh_nodes()
+	if _spot and _spot.stream:
+		_spot.play()
 
 func _setup_bgm() -> void:
 	if not _bgm:
@@ -239,7 +289,7 @@ func _setup_bgm() -> void:
 	var bgm_stream: AudioStream = load("res://sounds/background_music.ogg") as AudioStream
 	if bgm_stream:
 		_bgm.stream = bgm_stream
-		_bgm.volume_db = -12.0
+		_bgm.volume_db = bgm_volume_db
 		if not _bgm.is_connected("finished", Callable(self, "_on_bgm_finished")):
 			_bgm.finished.connect(Callable(self, "_on_bgm_finished"))
 		if not _bgm.playing:

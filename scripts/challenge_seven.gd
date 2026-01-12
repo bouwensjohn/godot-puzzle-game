@@ -204,6 +204,9 @@ func _physics_process(delta: float) -> void:
 	if slot.get("locked") and piece.global_position.distance_to(unlock_spot_center) < GameConfig.SNAP_RADIUS:
 		slot.set("locked", false)
 		relock_timer = 2.0
+		var am_unlock := get_node_or_null("/root/AudioManager")
+		if am_unlock:
+			am_unlock.call("spot")
 	if not slot.get("snapped") and not slot.get("locked"):
 		if relock_timer > 0.0:
 			relock_timer -= delta

@@ -143,6 +143,9 @@ func _physics_process(delta: float) -> void:
 	# Unlock check: piece must pass over the spot
 	if slot.get("locked") and piece.global_position.distance_to(unlock_spot_center) < GameConfig.SNAP_RADIUS:
 		slot.set("locked", false)
+		var am_unlock := get_node_or_null("/root/AudioManager")
+		if am_unlock:
+			am_unlock.call("spot")
 	if not piece.get("held") and not slot.get("snapped"):
 		var near: bool = piece.global_position.distance_to(slot.global_position) < SNAP_RADIUS
 		var ang_diff: float = abs(wrapf(piece.rotation - slot.rotation, -PI, PI))

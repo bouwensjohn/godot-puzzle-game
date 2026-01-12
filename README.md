@@ -49,3 +49,8 @@ HUD shows velocity, hold state, and save stats (attempts, completed, best time).
 - Run the project and verify movement, grabbing (Space), snapping, and reset (R).
 - Confirm the `user://save.json` file updates on completion.
 - Replace visuals/audio incrementally as needed.
+
+## TODO
+In the help_layer add a volume slider for the cheering sound.
+Persist volume settings (e.g., via a SaveManager) so they’re retained between sessions.
+Add pausing while Help is open (get_tree().paused = true/false).
