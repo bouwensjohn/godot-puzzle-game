@@ -51,6 +51,9 @@ HUD shows velocity, hold state, and save stats (attempts, completed, best time).
 - Replace visuals/audio incrementally as needed.
 
 ## TODO
-In the help_layer add a volume slider for the cheering sound.
-Persist volume settings (e.g., via a SaveManager) so they’re retained between sessions.
-Add pausing while Help is open (get_tree().paused = true/false).
+- Add Cheer volume slider in Help modal. Let players control the "triumph" sound volume independently using the `scripts/audio_manager.gd` and add an HBox row labeled "Cheer" with an `HSlider` (range `-40..0 dB`, step `1`). Initialize with `AudioManager. Show current value label (e.g., `-12 dB`).
+
+- Persist volume settings inHelp modal (e.g., via a SaveManager) so they’re retained between sessions. store numeric volume fields in `user://save.json`
+
+- Pause gameplay while Help is open (get_tree().paused = true/false).Closing the modal resumes gameplay seamlessly.
+
