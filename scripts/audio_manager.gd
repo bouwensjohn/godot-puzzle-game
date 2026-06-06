@@ -13,10 +13,67 @@ var engine_volume_db := -8.0
 var skid_volume_db := -16.0
 var bgm_volume_db := -12.0
 
+# Bus-based mixer settings (persisted via SaveManager)
+const MUSIC_BUS := "Music"
+const SFX_BUS := "SFX"
+var master_volume_db := 0.0
+var sfx_volume_db := 0.0
+var music_volume_db := 0.0
+var muted := false
+
 func _ready() -> void:
+	_setup_buses()
 	_refresh_nodes()
 	_create_beep_sounds()
 	_setup_bgm()
+	_apply_buses()
+	_load_audio_settings()
+
+func _setup_buses() -> void:
+	# Ensure dedicated Music and SFX buses exist, both routed to Master.
+	if AudioServer.get_bus_index(MUSIC_BUS) == -1:
+		AudioServer.add_bus()
+		var i := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(i, MUSIC_BUS)
+		AudioServer.set_bus_send(i, "Master")
+	if AudioServer.get_bus_index(SFX_BUS) == -1:
+		AudioServer.add_bus()
+		var j := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(j, SFX_BUS)
+		AudioServer.set_bus_send(j, "Master")
+
+func _apply_buses() -> void:
+	# Route the music player to the Music bus and every effect to the SFX bus.
+	if _bgm: _bgm.bus = MUSIC_BUS
+	for p in [_click, _release, _engine, _triumph, _skid, _bark, _spot]:
+		if p:
+			p.bus = SFX_BUS
+
+func _load_audio_settings() -> void:
+	var sm := get_node_or_null("/root/SaveManager")
+	if sm and sm.has_method("get_audio"):
+		var a: Dictionary = sm.call("get_audio")
+		master_volume_db = float(a.get("master_db", 0.0))
+		sfx_volume_db = float(a.get("sfx_db", 0.0))
+		music_volume_db = float(a.get("music_db", 0.0))
+		muted = bool(a.get("muted", false))
+	_apply_master()
+	_apply_sfx()
+	_apply_music()
+
+func _apply_master() -> void:
+	AudioServer.set_bus_volume_db(0, master_volume_db)
+	AudioServer.set_bus_mute(0, muted)
+
+func _apply_sfx() -> void:
+	var i := AudioServer.get_bus_index(SFX_BUS)
+	if i >= 0:
+		AudioServer.set_bus_volume_db(i, sfx_volume_db)
+
+func _apply_music() -> void:
+	var i := AudioServer.get_bus_index(MUSIC_BUS)
+	if i >= 0:
+		AudioServer.set_bus_volume_db(i, music_volume_db)
 
 func _refresh_nodes() -> void:
 	# Try to resolve players in the running scene. Safe if not found.
@@ -85,6 +142,7 @@ func _refresh_nodes() -> void:
 	# If we created any new players, ensure their streams are loaded
 	if created_any:
 		_create_beep_sounds()
+	_apply_buses()
 
 func _create_beep_sounds() -> void:
 	# Create simple beep sounds using AudioStreamWAV
@@ -271,6 +329,49 @@ func get_skid_volume_db() -> float:
 
 func get_bgm_volume_db() -> float:
 	return bgm_volume_db
+
+# --- Mixer (Master / SFX / Music buses + Mute) ---------------------------
+
+func set_master_volume_db(v: float) -> void:
+	master_volume_db = v
+	_apply_master()
+	_persist_audio("master_db", v)
+
+func get_master_volume_db() -> float:
+	return master_volume_db
+
+func set_sfx_volume_db(v: float) -> void:
+	sfx_volume_db = v
+	_apply_sfx()
+	_persist_audio("sfx_db", v)
+
+func get_sfx_volume_db() -> float:
+	return sfx_volume_db
+
+func set_music_volume_db(v: float) -> void:
+	music_volume_db = v
+	_apply_music()
+	_persist_audio("music_db", v)
+
+func get_music_volume_db() -> float:
+	return music_volume_db
+
+func set_muted(m: bool) -> void:
+	muted = m
+	_apply_master()
+	_persist_audio("muted", m)
+
+func is_muted() -> bool:
+	return muted
+
+func toggle_mute() -> bool:
+	set_muted(not muted)
+	return muted
+
+func _persist_audio(key: String, value) -> void:
+	var sm := get_node_or_null("/root/SaveManager")
+	if sm and sm.has_method("set_audio_value"):
+		sm.call("set_audio_value", key, value)
 
 func bark_notice() -> void:
 	if _bark == null: _refresh_nodes()
