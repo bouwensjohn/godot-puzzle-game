@@ -12,6 +12,7 @@ var _spot: AudioStreamPlayer
 var engine_volume_db := -8.0
 var skid_volume_db := -16.0
 var bgm_volume_db := -12.0
+var triumph_volume_db := -6.0
 
 func _ready() -> void:
 	_refresh_nodes()
@@ -58,7 +59,7 @@ func _refresh_nodes() -> void:
 	if not _triumph:
 		_triumph = AudioStreamPlayer.new()
 		add_child(_triumph)
-		_triumph.volume_db = -3.0
+		_triumph.volume_db = triumph_volume_db
 		created_any = true
 	
 	# Create skid player if it doesn't exist
@@ -107,7 +108,7 @@ func _create_beep_sounds() -> void:
 		var cheer_stream: AudioStream = load("res://sounds/cheer.ogg") as AudioStream
 		if cheer_stream:
 			_triumph.stream = cheer_stream
-			_triumph.volume_db = -3.0
+			_triumph.volume_db = triumph_volume_db
 	
 	if _skid:
 		var skid_stream: AudioStream = load("res://sounds/tirescreech.ogg") as AudioStream
@@ -263,6 +264,11 @@ func set_bgm_volume_db(v: float) -> void:
 	if _bgm:
 		_bgm.volume_db = v
 
+func set_triumph_volume_db(v: float) -> void:
+	triumph_volume_db = v
+	if _triumph:
+		_triumph.volume_db = v
+
 func get_engine_volume_db() -> float:
 	return engine_volume_db
 
@@ -271,6 +277,9 @@ func get_skid_volume_db() -> float:
 
 func get_bgm_volume_db() -> float:
 	return bgm_volume_db
+
+func get_triumph_volume_db() -> float:
+	return triumph_volume_db
 
 func bark_notice() -> void:
 	if _bark == null: _refresh_nodes()

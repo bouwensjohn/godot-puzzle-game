@@ -392,10 +392,12 @@ func _ensure_help_layer() -> void:
 	var engine_default := -8.0
 	var skid_default := -16.0
 	var bgm_default := -12.0
+	var triumph_default := -6.0
 	if am:
 		if am.has_method("get_engine_volume_db"): engine_default = am.call("get_engine_volume_db")
 		if am.has_method("get_skid_volume_db"): skid_default = am.call("get_skid_volume_db")
 		if am.has_method("get_bgm_volume_db"): bgm_default = am.call("get_bgm_volume_db")
+		if am.has_method("get_triumph_volume_db"): triumph_default = am.call("get_triumph_volume_db")
 	var engine_row := HBoxContainer.new()
 	engine_row.add_theme_constant_override("separation", 12)
 	var engine_label := Label.new()
@@ -488,6 +490,38 @@ func _ensure_help_layer() -> void:
 		var am4 := get_node_or_null("/root/AudioManager")
 		if am4 and am4.has_method("set_bgm_volume_db"):
 			am4.call("set_bgm_volume_db", v)
+	)
+	# Cheer / Triumph volume row
+	var cheer_row := HBoxContainer.new()
+	cheer_row.add_theme_constant_override("separation", 12)
+	var cheer_label := Label.new()
+	cheer_label.text = "Cheer"
+	cheer_label.custom_minimum_size = Vector2(180, 0)
+	cheer_label.add_theme_font_size_override("font_size", 32)
+	if playful_font:
+		cheer_label.add_theme_font_override("font", playful_font)
+	cheer_row.add_child(cheer_label)
+	var cheer_slider := HSlider.new()
+	cheer_slider.min_value = -40.0
+	cheer_slider.max_value = 0.0
+	cheer_slider.step = 1.0
+	cheer_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cheer_slider.value = triumph_default
+	cheer_row.add_child(cheer_slider)
+	var cheer_val := Label.new()
+	cheer_val.text = String.num(cheer_slider.value, 0) + " dB"
+	cheer_val.custom_minimum_size = Vector2(80, 0)
+	cheer_val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	cheer_val.add_theme_font_size_override("font_size", 28)
+	if playful_font:
+		cheer_val.add_theme_font_override("font", playful_font)
+	cheer_row.add_child(cheer_val)
+	grid.add_child(cheer_row)
+	cheer_slider.value_changed.connect(func(v):
+		cheer_val.text = String.num(v, 0) + " dB"
+		var ama := get_node_or_null("/root/AudioManager")
+		if ama and ama.has_method("set_triumph_volume_db"):
+			ama.call("set_triumph_volume_db", v)
 	)
 	var close := Button.new()
 	close.text = "Close"
