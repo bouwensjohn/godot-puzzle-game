@@ -20,6 +20,12 @@ var unlock_spot_center: Vector2 = Vector2(450, 380)
 var release_cooldown := 0.0
 var elapsed_time := 0.0
 
+# Fragile cargo: bumping walls while carrying damages the package instead of
+# instantly dropping it. It only breaks loose after MAX_CARGO_DAMAGE hits.
+var cargo_damage := 0
+var damage_cooldown := 0.0
+const MAX_CARGO_DAMAGE := 3
+
 func init_state() -> void:
 	# Initial state (mirrors HTML prototype)
 	forklift.global_position = GameConfig.FORKLIFT_INIT_POS
@@ -35,6 +41,10 @@ func init_state() -> void:
 	slot.set("locked", true)
 	release_cooldown = 0.0
 	elapsed_time = 0.0
+	cargo_damage = 0
+	damage_cooldown = 0.0
+	if is_instance_valid(piece):
+		piece.modulate = Color(1, 1, 1, 1)
 	update_hud()
 	# Initialize camera after positions
 	camera.position = forklift.global_position
@@ -127,6 +137,8 @@ func _physics_process(delta: float) -> void:
 	elapsed_time += delta
 	if release_cooldown > 0.0:
 		release_cooldown -= delta
+	if damage_cooldown > 0.0:
+		damage_cooldown -= delta
 	(forklift as Node).call("update_move", delta)
 	handle_wall_collision()
 	clamp_to_world(forklift, 30.0)
@@ -228,14 +240,7 @@ func handle_wall_collision() -> void:
 				forklift.global_position.y = wall_bottom + forklift_radius + 2
 			forklift.set("velocity", velocity)
 			if piece.get("held"):
-				piece.set("held", false)
-				release_cooldown = 0.3
-				var fwd2: Vector2 = Vector2.RIGHT.rotated(forklift.rotation)
-				var nudge: Vector2 = fwd2 * 50.0 * (1.0/60.0) * 60.0
-				var piece_velocity: Vector2 = velocity + nudge
-				piece.set("velocity", piece_velocity)
-				var am := get_node_or_null("/root/AudioManager")
-				if am: am.call("release")
+				_damage_cargo(velocity)
 			return
 
 func try_grab_or_release(dt: float) -> void:
@@ -258,6 +263,42 @@ func reset_state() -> void:
 	init_state()
 	var sm := get_node_or_null("/root/SaveManager")
 	if sm: sm.call("record_attempt", false, 0.0)
+
+func _damage_cargo(forklift_velocity: Vector2) -> void:
+	# Throttle repeated counts and ignore gentle scrapes so light taps are free.
+	if damage_cooldown > 0.0:
+		return
+	if forklift_velocity.length() < 40.0:
+		return
+	damage_cooldown = 0.6
+	cargo_damage += 1
+	_flash_piece()
+	var am := get_node_or_null("/root/AudioManager")
+	if cargo_damage >= MAX_CARGO_DAMAGE:
+		# Cargo finally breaks loose and is dropped.
+		piece.set("held", false)
+		release_cooldown = 0.3
+		var fwd2: Vector2 = Vector2.RIGHT.rotated(forklift.rotation)
+		piece.set("velocity", forklift_velocity + fwd2 * 50.0)
+		cargo_damage = 0
+		if am: am.call("release")
+		_notify("Cargo dropped! Re-grab the package and ease off the walls.")
+	else:
+		if am and am.has_method("bark_notice"): am.call("bark_notice")
+		_notify("Careful \u2014 fragile cargo damaged (%d/%d)" % [cargo_damage, MAX_CARGO_DAMAGE])
+	update_hud()
+
+func _flash_piece() -> void:
+	if not is_instance_valid(piece):
+		return
+	piece.modulate = Color(1.0, 0.4, 0.4, 1.0)
+	var tw := create_tween()
+	tw.tween_property(piece, "modulate", Color(1, 1, 1, 1), 0.5)
+
+func _notify(text: String) -> void:
+	var gm := get_node_or_null("/root/GameManager")
+	if gm and gm.has_method("queue_hint"):
+		gm.call("queue_hint", text)
 
 func wrap_position(n: Node2D) -> void:
 	var p := n.global_position

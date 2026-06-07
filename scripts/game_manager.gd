@@ -26,6 +26,136 @@ var help_layer: CanvasLayer
 var help_root: Control
 var help_visible := false
 
+# --- Player-experience additions -----------------------------------------
+var info_layer: CanvasLayer
+var briefing_panel: Control
+var briefing_loc_label: Label
+var briefing_text_label: Label
+var hint_label: Label
+var menu_layer: CanvasLayer
+var _briefing_tween: Tween
+var _hint_queue: Array = []
+var _hint_running := false
+var level_attempts := 0
+var hint_index := 0
+
+# Lightweight story + onboarding metadata, parallel to `challenges`.
+# location: place name for the story framework
+# briefing: 1-2 sentence mission briefing shown at level start
+# intro / intro_id: first-time-only explanation when a new mechanic appears
+# hints: context-sensitive hints shown after repeated failed attempts
+# gold / silver: medal time thresholds in seconds (slower still earns bronze)
+const LEVEL_META := [
+	{
+		"location": "Training Yard",
+		"briefing": "Welcome to the Training Yard. Move the crate onto the marked pad to earn your operator badge.",
+		"intro": "",
+		"intro_id": "",
+		"hints": [
+			"Line the forks up with the package, then press Space to grab it.",
+			"Press Space again to set the package down on the goal pad.",
+			"Drive slowly and turn early to stay in control."
+		],
+		"gold": 8.0, "silver": 16.0
+	},
+	{
+		"location": "Warehouse District",
+		"briefing": "Warehouse District: a pallet of supplies must reach the far dock. Mind the partition wall.",
+		"intro": "New: walls block your path. Steer around obstacles to reach the goal.",
+		"intro_id": "walls",
+		"hints": [
+			"Try approaching the goal from a different angle.",
+			"Steer around the wall instead of pushing into it.",
+			"Release the package with a gentle tap so it settles."
+		],
+		"gold": 12.0, "silver": 24.0
+	},
+	{
+		"location": "Underground Maze",
+		"briefing": "Underground Maze: deliver fragile medical equipment through the old tunnels. Handle it with care.",
+		"intro": "New: fragile cargo. Bumping a wall while carrying it causes damage \u2014 after three hits you'll drop the package.",
+		"intro_id": "fragile",
+		"hints": [
+			"Slower driving may help maintain control of the fragile cargo.",
+			"Touch the glowing spot with the package to unlock the goal.",
+			"Take corners wide to avoid scraping the maze walls."
+		],
+		"gold": 22.0, "silver": 45.0
+	},
+	{
+		"location": "Research Facility",
+		"briefing": "Research Facility: transport sensitive lab samples and bank them into the secure receiver.",
+		"intro": "New: purple bumpers. The package bounces off them \u2014 use ricochets to reach locked goals.",
+		"intro_id": "bounce",
+		"hints": [
+			"The package can bounce off the purple objects.",
+			"Unlock the goal first, then line up your ricochet.",
+			"A slower, angled bump aims the bounce better."
+		],
+		"gold": 18.0, "silver": 35.0
+	},
+	{
+		"location": "Industrial Zone",
+		"briefing": "Industrial Zone: route emergency power cells through the narrow service tunnels.",
+		"intro": "New: tight tunnels. Thread the narrow passages slowly to keep control.",
+		"intro_id": "tunnel",
+		"hints": [
+			"Slow right down before entering the narrow passages.",
+			"If you get wedged, reverse out and realign.",
+			"Keep the package straight so it fits through gaps."
+		],
+		"gold": 22.0, "silver": 42.0
+	},
+	{
+		"location": "Security Compound",
+		"briefing": "Security Compound: a sealed vault guards the drop point. Trip the lever to open it.",
+		"intro": "New: corner hook and door. Rotate the hook to pull the lever and spring the door open.",
+		"intro_id": "hook",
+		"hints": [
+			"Nudge the corner hook to rotate it onto the lever.",
+			"Open the door first, then drive the package straight through.",
+			"Line up before the door so you keep your momentum."
+		],
+		"gold": 24.0, "silver": 48.0
+	},
+	{
+		"location": "Hazard Sector",
+		"briefing": "Hazard Sector: cross the active bumper field and deliver the payload intact.",
+		"intro": "New: moving bumpers. Dodge the roaming bumpers, then ricochet off the final one.",
+		"intro_id": "gauntlet",
+		"hints": [
+			"Wait for a gap before crossing the moving bumpers.",
+			"Use the final bumper to ricochet into the locked goal.",
+			"Keep moving \u2014 a parked forklift is an easy target."
+		],
+		"gold": 30.0, "silver": 60.0
+	},
+	{
+		"location": "Central Hub",
+		"briefing": "Central Hub: rival loaders are active. Retrieve the package and get it outside.",
+		"intro": "New: chasing bumpers. They awaken and chase your recent path \u2014 keep moving.",
+		"intro_id": "chase",
+		"hints": [
+			"The bumpers chase where you were a moment ago \u2014 keep moving.",
+			"Lead them away, then double back for the package.",
+			"Use the doorways to break their line of sight."
+		],
+		"gold": 35.0, "silver": 70.0
+	},
+	{
+		"location": "Final Priority Delivery",
+		"briefing": "Final Priority Delivery: the last and most important shipment. Outwit the loaders and bring it home.",
+		"intro": "New: throwable pills. Bumpers chase moving pills and grow \u2014 use pills to distract them.",
+		"intro_id": "pills",
+		"hints": [
+			"Throw a pill to distract the bumpers, then grab the package.",
+			"Bumpers chase moving pills \u2014 use them to clear your path.",
+			"Unlock the goal, then make your run while they're busy."
+		],
+		"gold": 40.0, "silver": 80.0
+	}
+]
+
 func _ready() -> void:
 	# Initialize challenges array for future expansion
 	setup_challenges()
@@ -33,6 +163,7 @@ func _ready() -> void:
 	# Setup completion timer
 	setup_completion_timer()
 	setup_fade_overlay()
+	_ensure_info_layer()
 	
 	# Start with splash screen
 	show_splash_screen()
@@ -103,12 +234,17 @@ func show_splash_screen() -> void:
 	splash.splash_finished.connect(_on_splash_finished)
 
 func _on_splash_finished() -> void:
-	show_player_mode_prompt()
+	show_main_menu()
+
+func _is_persistent(child: Node) -> bool:
+	# Overlays that must survive challenge swaps.
+	return child == challenge_completed_timer or child == fade_layer \
+		or child == info_layer or child == help_layer
 
 func load_current_challenge() -> void:
 	# Clear any existing children (splash screen should already be freed)
 	for child in get_children():
-		if child != challenge_completed_timer and child != fade_layer:  # Don't free the timer
+		if not _is_persistent(child):  # Don't free the timer or persistent overlays
 			child.queue_free()
 	
 	# Wait a frame to ensure cleanup
@@ -126,6 +262,7 @@ func load_current_challenge() -> void:
 		_prev_thrust = false
 		await get_tree().process_frame
 		_apply_player_to_hud()
+		_on_level_started()
 	else:
 		print("No more challenges to load")
 
@@ -152,6 +289,10 @@ func on_challenge_completed() -> void:
 		if current_player_idx >= 0 and current_player_idx < 2:
 			last_times[current_player_idx] = run_elapsed
 		run_active = false
+	else:
+		# Single-player: record progression (best time, unlock next, medal).
+		_record_level_completion(current_challenge_index, run_elapsed)
+		run_active = false
 	
 	# Play triumph sound
 	var am := get_node_or_null("/root/AudioManager")
@@ -173,6 +314,11 @@ func on_challenge_completed() -> void:
 func _on_completion_timer_timeout() -> void:
 	is_transitioning = false
 	if not mode_two_players:
+		if current_challenge_index + 1 >= challenges.size():
+			# Campaign complete — return to the main menu.
+			await get_tree().process_frame
+			show_main_menu()
+			return
 		if fade_rect:
 			fade_rect.modulate.a = 1.0
 		next_challenge()
@@ -315,6 +461,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_toggle_help()
 			get_viewport().set_input_as_handled()
 			return
+		if code == KEY_R:
+			# Observe resets to drive context-sensitive hints (challenge still
+			# handles the actual reset; we don't consume the event here).
+			_on_player_reset()
 		if selection_layer and selection_layer.is_inside_tree():
 			if code == KEY_1:
 				_on_pick_one_player()
@@ -379,7 +529,7 @@ func _ensure_help_layer() -> void:
 	var sep := HSeparator.new()
 	vb.add_child(sep)
 	var vol_title := Label.new()
-	vol_title.text = "Volumes (dB)"
+	vol_title.text = "Audio Settings"
 	vol_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vol_title.add_theme_font_size_override("font_size", 42)
 	if playful_font:
@@ -389,106 +539,30 @@ func _ensure_help_layer() -> void:
 	grid.add_theme_constant_override("separation", 10)
 	vb.add_child(grid)
 	var am := get_node_or_null("/root/AudioManager")
-	var engine_default := -8.0
-	var skid_default := -16.0
-	var bgm_default := -12.0
+	var master_default := 0.0
+	var sfx_default := 0.0
+	var music_default := 0.0
+	var muted_default := false
 	if am:
-		if am.has_method("get_engine_volume_db"): engine_default = am.call("get_engine_volume_db")
-		if am.has_method("get_skid_volume_db"): skid_default = am.call("get_skid_volume_db")
-		if am.has_method("get_bgm_volume_db"): bgm_default = am.call("get_bgm_volume_db")
-	var engine_row := HBoxContainer.new()
-	engine_row.add_theme_constant_override("separation", 12)
-	var engine_label := Label.new()
-	engine_label.text = "Throttle"
-	engine_label.custom_minimum_size = Vector2(180, 0)
-	engine_label.add_theme_font_size_override("font_size", 32)
+		if am.has_method("get_master_volume_db"): master_default = am.call("get_master_volume_db")
+		if am.has_method("get_sfx_volume_db"): sfx_default = am.call("get_sfx_volume_db")
+		if am.has_method("get_music_volume_db"): music_default = am.call("get_music_volume_db")
+		if am.has_method("is_muted"): muted_default = am.call("is_muted")
+	_add_volume_row(grid, playful_font, "Master", master_default, "set_master_volume_db")
+	_add_volume_row(grid, playful_font, "SFX", sfx_default, "set_sfx_volume_db")
+	_add_volume_row(grid, playful_font, "Music", music_default, "set_music_volume_db")
+	var mute_btn := CheckButton.new()
+	mute_btn.text = "Mute all audio"
+	mute_btn.button_pressed = muted_default
+	mute_btn.add_theme_font_size_override("font_size", 32)
 	if playful_font:
-		engine_label.add_theme_font_override("font", playful_font)
-	engine_row.add_child(engine_label)
-	var engine_slider := HSlider.new()
-	engine_slider.min_value = -40.0
-	engine_slider.max_value = 0.0
-	engine_slider.step = 1.0
-	engine_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	engine_slider.value = engine_default
-	engine_row.add_child(engine_slider)
-	var engine_val := Label.new()
-	engine_val.text = String.num(engine_slider.value, 0) + " dB"
-	engine_val.custom_minimum_size = Vector2(80, 0)
-	engine_val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	engine_val.add_theme_font_size_override("font_size", 28)
-	if playful_font:
-		engine_val.add_theme_font_override("font", playful_font)
-	engine_row.add_child(engine_val)
-	grid.add_child(engine_row)
-	engine_slider.value_changed.connect(func(v):
-		engine_val.text = String.num(v, 0) + " dB"
-		var am2 := get_node_or_null("/root/AudioManager")
-		if am2 and am2.has_method("set_engine_volume_db"):
-			am2.call("set_engine_volume_db", v)
+		mute_btn.add_theme_font_override("font", playful_font)
+	mute_btn.toggled.connect(func(on):
+		var amm := get_node_or_null("/root/AudioManager")
+		if amm and amm.has_method("set_muted"):
+			amm.call("set_muted", on)
 	)
-	var skid_row := HBoxContainer.new()
-	skid_row.add_theme_constant_override("separation", 12)
-	var skid_label := Label.new()
-	skid_label.text = "Skid"
-	skid_label.custom_minimum_size = Vector2(180, 0)
-	skid_label.add_theme_font_size_override("font_size", 32)
-	if playful_font:
-		skid_label.add_theme_font_override("font", playful_font)
-	skid_row.add_child(skid_label)
-	var skid_slider := HSlider.new()
-	skid_slider.min_value = -40.0
-	skid_slider.max_value = 0.0
-	skid_slider.step = 1.0
-	skid_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skid_slider.value = skid_default
-	skid_row.add_child(skid_slider)
-	var skid_val := Label.new()
-	skid_val.text = String.num(skid_slider.value, 0) + " dB"
-	skid_val.custom_minimum_size = Vector2(80, 0)
-	skid_val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	skid_val.add_theme_font_size_override("font_size", 28)
-	if playful_font:
-		skid_val.add_theme_font_override("font", playful_font)
-	skid_row.add_child(skid_val)
-	grid.add_child(skid_row)
-	skid_slider.value_changed.connect(func(v):
-		skid_val.text = String.num(v, 0) + " dB"
-		var am3 := get_node_or_null("/root/AudioManager")
-		if am3 and am3.has_method("set_skid_volume_db"):
-			am3.call("set_skid_volume_db", v)
-	)
-	var bgm_row := HBoxContainer.new()
-	bgm_row.add_theme_constant_override("separation", 12)
-	var bgm_label := Label.new()
-	bgm_label.text = "Music"
-	bgm_label.custom_minimum_size = Vector2(180, 0)
-	bgm_label.add_theme_font_size_override("font_size", 32)
-	if playful_font:
-		bgm_label.add_theme_font_override("font", playful_font)
-	bgm_row.add_child(bgm_label)
-	var bgm_slider := HSlider.new()
-	bgm_slider.min_value = -40.0
-	bgm_slider.max_value = 0.0
-	bgm_slider.step = 1.0
-	bgm_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bgm_slider.value = bgm_default
-	bgm_row.add_child(bgm_slider)
-	var bgm_val := Label.new()
-	bgm_val.text = String.num(bgm_slider.value, 0) + " dB"
-	bgm_val.custom_minimum_size = Vector2(80, 0)
-	bgm_val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	bgm_val.add_theme_font_size_override("font_size", 28)
-	if playful_font:
-		bgm_val.add_theme_font_override("font", playful_font)
-	bgm_row.add_child(bgm_val)
-	grid.add_child(bgm_row)
-	bgm_slider.value_changed.connect(func(v):
-		bgm_val.text = String.num(v, 0) + " dB"
-		var am4 := get_node_or_null("/root/AudioManager")
-		if am4 and am4.has_method("set_bgm_volume_db"):
-			am4.call("set_bgm_volume_db", v)
-	)
+	grid.add_child(mute_btn)
 	var close := Button.new()
 	close.text = "Close"
 	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -509,6 +583,39 @@ func _hide_help() -> void:
 	if help_root:
 		help_root.visible = false
 	help_visible = false
+
+func _add_volume_row(parent: Node, font: Variant, label_text: String, default_db: float, setter: String) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size = Vector2(180, 0)
+	label.add_theme_font_size_override("font_size", 32)
+	if font:
+		label.add_theme_font_override("font", font)
+	row.add_child(label)
+	var slider := HSlider.new()
+	slider.min_value = -40.0
+	slider.max_value = 0.0
+	slider.step = 1.0
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.value = default_db
+	row.add_child(slider)
+	var val := Label.new()
+	val.text = String.num(slider.value, 0) + " dB"
+	val.custom_minimum_size = Vector2(80, 0)
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	val.add_theme_font_size_override("font_size", 28)
+	if font:
+		val.add_theme_font_override("font", font)
+	row.add_child(val)
+	parent.add_child(row)
+	slider.value_changed.connect(func(v):
+		val.text = String.num(v, 0) + " dB"
+		var am := get_node_or_null("/root/AudioManager")
+		if am and am.has_method(setter):
+			am.call(setter, v)
+	)
 
 func jump_to_challenge(n: int) -> void:
 	is_transitioning = false
@@ -627,6 +734,18 @@ func show_player_mode_prompt() -> void:
 		two.add_theme_font_override("font", playful_font)
 	two.pressed.connect(_on_pick_two_players)
 	hb.add_child(two)
+	var back := Button.new()
+	back.text = "Back"
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	back.add_theme_font_size_override("font_size", 28)
+	if playful_font:
+		back.add_theme_font_override("font", playful_font)
+	back.pressed.connect(func():
+		if selection_layer: selection_layer.queue_free()
+		selection_layer = null
+		show_main_menu()
+	)
+	vb.add_child(back)
 
 func _on_pick_one_player() -> void:
 	mode_two_players = false
@@ -746,7 +865,394 @@ func _reset_to_start() -> void:
 	if fade_rect:
 		fade_rect.modulate.a = 0.0
 	for child in get_children():
-		if child != challenge_completed_timer and child != fade_layer:
+		if not _is_persistent(child):
 			child.queue_free()
 	await get_tree().process_frame
-	show_player_mode_prompt()
+	show_main_menu()
+
+# === Player-experience: overlays, menu, hints, progression ================
+
+func _playful_font() -> Font:
+	return load("res://fonts/A Gentle Touch.ttf")
+
+func _ensure_info_layer() -> void:
+	if info_layer and is_instance_valid(info_layer):
+		return
+	info_layer = CanvasLayer.new()
+	info_layer.layer = 70
+	add_child(info_layer)
+	var font := _playful_font()
+	# Top mission-briefing banner
+	briefing_panel = PanelContainer.new()
+	briefing_panel.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	briefing_panel.offset_top = 28
+	briefing_panel.offset_left = 0
+	briefing_panel.offset_right = 0
+	briefing_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	briefing_panel.modulate.a = 0.0
+	briefing_panel.visible = false
+	info_layer.add_child(briefing_panel)
+	var bcenter := CenterContainer.new()
+	briefing_panel.add_child(bcenter)
+	var bvb := VBoxContainer.new()
+	bvb.alignment = BoxContainer.ALIGNMENT_CENTER
+	bvb.add_theme_constant_override("separation", 4)
+	bcenter.add_child(bvb)
+	briefing_loc_label = Label.new()
+	briefing_loc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	briefing_loc_label.add_theme_font_size_override("font_size", 44)
+	briefing_loc_label.add_theme_color_override("font_color", Color(1, 0.86, 0.45))
+	briefing_loc_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	briefing_loc_label.add_theme_constant_override("outline_size", 5)
+	if font: briefing_loc_label.add_theme_font_override("font", font)
+	bvb.add_child(briefing_loc_label)
+	briefing_text_label = Label.new()
+	briefing_text_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	briefing_text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	briefing_text_label.custom_minimum_size = Vector2(1400, 0)
+	briefing_text_label.add_theme_font_size_override("font_size", 32)
+	briefing_text_label.add_theme_color_override("font_color", Color(1, 1, 1))
+	briefing_text_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	briefing_text_label.add_theme_constant_override("outline_size", 4)
+	if font: briefing_text_label.add_theme_font_override("font", font)
+	bvb.add_child(briefing_text_label)
+	# Bottom subtle hint label
+	hint_label = Label.new()
+	hint_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	hint_label.offset_top = -140
+	hint_label.offset_bottom = -48
+	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint_label.add_theme_font_size_override("font_size", 30)
+	hint_label.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0))
+	hint_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	hint_label.add_theme_constant_override("outline_size", 5)
+	if font: hint_label.add_theme_font_override("font", font)
+	hint_label.modulate.a = 0.0
+	hint_label.visible = false
+	hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info_layer.add_child(hint_label)
+
+func show_briefing(location: String, text: String) -> void:
+	_ensure_info_layer()
+	briefing_loc_label.text = location
+	briefing_text_label.text = text
+	if _briefing_tween and _briefing_tween.is_valid():
+		_briefing_tween.kill()
+	briefing_panel.modulate.a = 0.0
+	briefing_panel.visible = true
+	_briefing_tween = create_tween()
+	_briefing_tween.tween_property(briefing_panel, "modulate:a", 1.0, 0.45)
+	_briefing_tween.tween_interval(4.5)
+	_briefing_tween.tween_property(briefing_panel, "modulate:a", 0.0, 0.7)
+
+func queue_hint(text: String) -> void:
+	_ensure_info_layer()
+	_hint_queue.append(text)
+	if not _hint_running:
+		_run_hint_queue()
+
+func _run_hint_queue() -> void:
+	_hint_running = true
+	while _hint_queue.size() > 0:
+		var t: String = str(_hint_queue.pop_front())
+		if not is_instance_valid(hint_label):
+			break
+		hint_label.text = t
+		hint_label.modulate.a = 0.0
+		hint_label.visible = true
+		var tin := create_tween()
+		tin.tween_property(hint_label, "modulate:a", 0.95, 0.35)
+		await tin.finished
+		await get_tree().create_timer(3.6).timeout
+		if not is_instance_valid(hint_label):
+			break
+		var tout := create_tween()
+		tout.tween_property(hint_label, "modulate:a", 0.0, 0.55)
+		await tout.finished
+	if is_instance_valid(hint_label):
+		hint_label.visible = false
+	_hint_running = false
+
+func _clear_hints() -> void:
+	_hint_queue.clear()
+	if is_instance_valid(hint_label):
+		hint_label.visible = false
+		hint_label.modulate.a = 0.0
+
+func _on_level_started() -> void:
+	var idx: int = current_challenge_index
+	level_attempts = 0
+	hint_index = 0
+	_clear_hints()
+	if idx < 0 or idx >= LEVEL_META.size():
+		return
+	var meta: Dictionary = LEVEL_META[idx]
+	show_briefing("Assignment %d \u2014 %s" % [idx + 1, str(meta["location"])], str(meta["briefing"]))
+	if mode_two_players:
+		return
+	var sm := get_node_or_null("/root/SaveManager")
+	if idx == 0 and sm and sm.has_method("has_seen_intro") and not sm.call("has_seen_intro", "onboarding"):
+		queue_hint("Use WASD or Arrow Keys to drive.")
+		queue_hint("Press Space to pick up the package with the forklift.")
+		queue_hint("Deliver the package to the goal pad.")
+		sm.call("mark_intro_seen", "onboarding")
+	var intro: String = str(meta.get("intro", ""))
+	var intro_id: String = str(meta.get("intro_id", ""))
+	if intro != "" and sm and sm.has_method("has_seen_intro") and not sm.call("has_seen_intro", intro_id):
+		queue_hint(intro)
+		sm.call("mark_intro_seen", intro_id)
+
+func _on_player_reset() -> void:
+	if mode_two_players or is_transitioning:
+		return
+	level_attempts += 1
+	if level_attempts == 3 or (level_attempts > 3 and (level_attempts - 3) % 2 == 0):
+		_show_next_struggle_hint()
+
+func _show_next_struggle_hint() -> void:
+	var idx: int = current_challenge_index
+	if idx < 0 or idx >= LEVEL_META.size():
+		return
+	var hints: Array = LEVEL_META[idx].get("hints", [])
+	if hints.is_empty():
+		return
+	queue_hint("Hint: " + str(hints[hint_index % hints.size()]))
+	hint_index += 1
+
+func _record_level_completion(idx: int, time_sec: float) -> void:
+	var sm := get_node_or_null("/root/SaveManager")
+	if sm == null:
+		return
+	if sm.has_method("record_level_result"):
+		sm.call("record_level_result", idx, time_sec)
+	if sm.has_method("unlock_through"):
+		sm.call("unlock_through", min(idx + 1, challenges.size() - 1))
+	# Compose a short completion message shown during the fade transition.
+	var loc := ""
+	var medal := ""
+	if idx >= 0 and idx < LEVEL_META.size():
+		loc = str(LEVEL_META[idx]["location"])
+		if sm.has_method("get_medal"):
+			medal = str(sm.call("get_medal", idx, float(LEVEL_META[idx]["gold"]), float(LEVEL_META[idx]["silver"])))
+	var best := time_sec
+	if sm.has_method("get_level_best"):
+		var b: float = sm.call("get_level_best", idx)
+		if b >= 0.0:
+			best = b
+	var medal_str := ""
+	match medal:
+		"gold": medal_str = "Gold medal!"
+		"silver": medal_str = "Silver medal"
+		"bronze": medal_str = "Delivered"
+		_: medal_str = ""
+	if fade_text:
+		var msg := "Delivery Complete"
+		if loc != "":
+			msg += " \u2014 " + loc
+		msg += "\nTime %.2fs    Best %.2fs" % [time_sec, best]
+		if medal_str != "":
+			msg += "\n" + medal_str
+		fade_text.text = msg
+		fade_text.add_theme_color_override("font_color", Color(1, 1, 1))
+
+func _menu_button(text: String, font: Font) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	b.custom_minimum_size = Vector2(560, 84)
+	b.add_theme_font_size_override("font_size", 40)
+	if font: b.add_theme_font_override("font", font)
+	return b
+
+func show_main_menu() -> void:
+	# Tear down any loaded challenge / transient layers, keep overlays.
+	if selection_layer and is_instance_valid(selection_layer):
+		selection_layer.queue_free()
+		selection_layer = null
+	for child in get_children():
+		if not _is_persistent(child):
+			child.queue_free()
+	_clear_hints()
+	if is_instance_valid(briefing_panel):
+		briefing_panel.visible = false
+	if fade_rect:
+		fade_rect.modulate.a = 0.0
+	if fade_text:
+		fade_text.text = ""
+	current_challenge_node = null
+	run_active = false
+	is_transitioning = false
+	var font := _playful_font()
+	menu_layer = CanvasLayer.new()
+	menu_layer.layer = 95
+	add_child(menu_layer)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	menu_layer.add_child(root)
+	var scrim := ColorRect.new()
+	scrim.color = Color(0, 0, 0, 0.6)
+	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
+	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(scrim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(center)
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 18)
+	center.add_child(vb)
+	var title := Label.new()
+	title.text = "Forklift Logistics Co."
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 76)
+	if font: title.add_theme_font_override("font", font)
+	vb.add_child(title)
+	var subtitle := Label.new()
+	subtitle.text = "Operator Delivery Assignments"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size", 34)
+	if font: subtitle.add_theme_font_override("font", font)
+	vb.add_child(subtitle)
+	var sm := get_node_or_null("/root/SaveManager")
+	var max_unlk := 0
+	if sm and sm.has_method("max_unlocked"):
+		max_unlk = int(sm.call("max_unlocked"))
+	var cont := _menu_button("Continue (Assignment %d)" % (max_unlk + 1), font)
+	cont.pressed.connect(func(): _start_single_player(max_unlk))
+	vb.add_child(cont)
+	var ng := _menu_button("New Game", font)
+	ng.pressed.connect(func():
+		if menu_layer: menu_layer.queue_free()
+		show_player_mode_prompt()
+	)
+	vb.add_child(ng)
+	var ls := _menu_button("Level Select", font)
+	ls.pressed.connect(func():
+		if menu_layer: menu_layer.queue_free()
+		show_level_select()
+	)
+	vb.add_child(ls)
+	var st := _menu_button("Settings", font)
+	st.pressed.connect(func(): _show_help())
+	vb.add_child(st)
+	var tip := Label.new()
+	tip.text = "Press H any time for help & audio settings"
+	tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tip.add_theme_font_size_override("font_size", 24)
+	if font: tip.add_theme_font_override("font", font)
+	vb.add_child(tip)
+
+func _start_single_player(start_idx: int) -> void:
+	mode_two_players = false
+	current_player_idx = 0
+	current_challenge_index = clampi(start_idx, 0, challenges.size() - 1)
+	is_transitioning = false
+	if challenge_completed_timer and is_instance_valid(challenge_completed_timer):
+		challenge_completed_timer.stop()
+	if menu_layer and is_instance_valid(menu_layer):
+		menu_layer.queue_free()
+	if selection_layer and is_instance_valid(selection_layer):
+		selection_layer.queue_free()
+		selection_layer = null
+	if fade_text: fade_text.text = ""
+	if fade_rect: fade_rect.modulate.a = 1.0
+	load_current_challenge()
+	await get_tree().process_frame
+	if fade_rect:
+		var tw := create_tween()
+		tw.tween_property(fade_rect, "modulate:a", 0.0, 0.8)
+
+func show_level_select() -> void:
+	var font := _playful_font()
+	var sm := get_node_or_null("/root/SaveManager")
+	selection_layer = CanvasLayer.new()
+	selection_layer.layer = 90
+	add_child(selection_layer)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	selection_layer.add_child(root)
+	var scrim := ColorRect.new()
+	scrim.color = Color(0, 0, 0, 0.78)
+	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
+	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(scrim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(center)
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 18)
+	center.add_child(vb)
+	var title := Label.new()
+	title.text = "Select Assignment"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 60)
+	if font: title.add_theme_font_override("font", font)
+	vb.add_child(title)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 24)
+	grid.add_theme_constant_override("v_separation", 18)
+	vb.add_child(grid)
+	for i in range(challenges.size()):
+		grid.add_child(_make_level_cell(i, sm, font))
+	var back := Button.new()
+	back.text = "Back"
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	back.custom_minimum_size = Vector2(260, 72)
+	back.add_theme_font_size_override("font_size", 36)
+	if font: back.add_theme_font_override("font", font)
+	back.pressed.connect(func():
+		if selection_layer: selection_layer.queue_free()
+		selection_layer = null
+		show_main_menu()
+	)
+	vb.add_child(back)
+
+func _make_level_cell(i: int, sm, font: Font) -> Control:
+	var unlocked := true
+	if sm and sm.has_method("is_unlocked"):
+		unlocked = bool(sm.call("is_unlocked", i))
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(440, 150)
+	var cvb := VBoxContainer.new()
+	cvb.add_theme_constant_override("separation", 4)
+	panel.add_child(cvb)
+	var loc := ("Level %d" % (i + 1))
+	if i < LEVEL_META.size():
+		loc = str(LEVEL_META[i]["location"])
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(420, 86)
+	btn.add_theme_font_size_override("font_size", 28)
+	if font: btn.add_theme_font_override("font", font)
+	if unlocked:
+		btn.text = "%d. %s" % [i + 1, loc]
+		btn.pressed.connect(func(): _start_single_player(i))
+	else:
+		btn.text = "%d. Locked" % (i + 1)
+		btn.disabled = true
+	cvb.add_child(btn)
+	var info := Label.new()
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info.add_theme_font_size_override("font_size", 24)
+	if font: info.add_theme_font_override("font", font)
+	if unlocked and sm and sm.has_method("get_level_best"):
+		var best: float = sm.call("get_level_best", i)
+		if best >= 0.0:
+			var medal := ""
+			if sm.has_method("get_medal") and i < LEVEL_META.size():
+				medal = str(sm.call("get_medal", i, float(LEVEL_META[i]["gold"]), float(LEVEL_META[i]["silver"])))
+			var ms := ""
+			match medal:
+				"gold": ms = "  [Gold]"
+				"silver": ms = "  [Silver]"
+				"bronze": ms = "  [Bronze]"
+			info.text = "Best: %.2fs%s" % [best, ms]
+		else:
+			info.text = "Not yet completed"
+	else:
+		info.text = "Locked"
+	cvb.add_child(info)
+	return panel
