@@ -28,15 +28,8 @@ func set_stats(stats: Dictionary) -> void:
 	if _player_name != "":
 		stats_lbl.visible = true
 		return
-	var attempts: int = int(stats.get("attempts", 0))
-	var completed: int = int(stats.get("completed_count", 0))
-	var best_v: Variant = stats.get("best_time_seconds", null)
-	var best_str: String = "-" if best_v == null else "%.2f" % float(best_v)
-	var prefix := ""
-	if _player_name != "":
-		prefix = "%s  " % _player_name
-		stats_lbl.add_theme_color_override("font_color", _player_color)
-	stats_lbl.text = "%sAttempts: %d  Completed: %d  Best: %s s" % [prefix, attempts, completed, best_str]
+	# Single-player stats live in the level briefing banner; keep the HUD uncluttered.
+	stats_lbl.visible = false
 
 func set_player(name: String, color: Color) -> void:
 	_player_name = name

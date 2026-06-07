@@ -954,7 +954,7 @@ func show_briefing(location: String, text: String) -> void:
 	briefing_panel.visible = true
 	_briefing_tween = create_tween()
 	_briefing_tween.tween_property(briefing_panel, "modulate:a", 1.0, 0.45)
-	_briefing_tween.tween_interval(4.5)
+	_briefing_tween.tween_interval(9.0)
 	_briefing_tween.tween_property(briefing_panel, "modulate:a", 0.0, 0.7)
 
 func _update_briefing_stats() -> void:
