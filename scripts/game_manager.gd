@@ -437,8 +437,7 @@ func _await_ok() -> void:
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.custom_minimum_size = Vector2(200, 72)
 	btn.add_theme_font_size_override("font_size", 40)
-	var playful_font_path := "res://fonts/A Gentle Touch.ttf"
-	var playful_font := load(playful_font_path)
+	var playful_font := _playful_font()
 	if playful_font:
 		btn.add_theme_font_override("font", playful_font)
 	btn.set_anchors_preset(Control.PRESET_CENTER)
@@ -517,8 +516,7 @@ func _ensure_help_layer() -> void:
 	title.text = "Help & Settings"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 64)
-	var playful_font_path := "res://fonts/A Gentle Touch.ttf"
-	var playful_font := load(playful_font_path)
+	var playful_font := _playful_font()
 	if playful_font:
 		title.add_theme_font_override("font", playful_font)
 	vb.add_child(title)
@@ -662,8 +660,7 @@ func setup_fade_overlay() -> void:
 	fade_text.add_theme_color_override("font_color", Color(1, 1, 1))
 	fade_text.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	fade_text.add_theme_constant_override("outline_size", 5)
-	var playful_font_path := "res://fonts/A Gentle Touch.ttf"
-	var playful_font := load(playful_font_path)
+	var playful_font := _playful_font()
 	if playful_font:
 		fade_text.add_theme_font_override("font", playful_font)
 	fade_layer.add_child(fade_text)
@@ -706,8 +703,7 @@ func show_player_mode_prompt() -> void:
 	ask.text = "How many players (1 or 2)?"
 	ask.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ask.add_theme_font_size_override("font_size", 48)
-	var playful_font_path := "res://fonts/A Gentle Touch.ttf"
-	var playful_font := load(playful_font_path)
+	var playful_font := _playful_font()
 	if playful_font:
 		ask.add_theme_font_override("font", playful_font)
 	vb.add_child(ask)
@@ -719,8 +715,6 @@ func show_player_mode_prompt() -> void:
 	one.text = "One Player [1]"
 	one.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	one.add_theme_font_size_override("font_size", 36)
-	# var playful_font_path := "res://fonts/A Gentle Touch.ttf"
-	# var playful_font := load(playful_font_path)
 	if playful_font:
 		one.add_theme_font_override("font", playful_font)
 	one.pressed.connect(_on_pick_one_player)
@@ -729,8 +723,6 @@ func show_player_mode_prompt() -> void:
 	two.text = "Two Players [2]"
 	two.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	two.add_theme_font_size_override("font_size", 36)
-	# var playful_font_path := "res://fonts/A Gentle Touch.ttf"
-	# var playful_font := load(playful_font_path)
 	if playful_font:
 		two.add_theme_font_override("font", playful_font)
 	two.pressed.connect(_on_pick_two_players)
@@ -804,8 +796,7 @@ func show_name_entry() -> void:
 	title.text = "Enter Player Names"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 42)
-	var playful_font_path2 := "res://fonts/A Gentle Touch.ttf"
-	var playful_font2 := load(playful_font_path2)
+	var playful_font2 := _playful_font()
 	if playful_font2:
 		title.add_theme_font_override("font", playful_font2)
 	vb.add_child(title)
@@ -874,7 +865,7 @@ func _reset_to_start() -> void:
 # === Player-experience: overlays, menu, hints, progression ================
 
 func _playful_font() -> Font:
-	return load("res://fonts/A Gentle Touch.ttf")
+	return load("res://fonts/PlaywriteGBJ.ttf")
 
 func _ensure_info_layer() -> void:
 	if info_layer and is_instance_valid(info_layer):
