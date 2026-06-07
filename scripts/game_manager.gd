@@ -29,6 +29,7 @@ var help_visible := false
 # --- Player-experience additions -----------------------------------------
 var info_layer: CanvasLayer
 var briefing_panel: Control
+var briefing_stats_label: Label
 var briefing_loc_label: Label
 var briefing_text_label: Label
 var hint_label: Label
@@ -885,22 +886,39 @@ func _ensure_info_layer() -> void:
 	# Top mission-briefing banner
 	briefing_panel = PanelContainer.new()
 	briefing_panel.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	briefing_panel.offset_top = 28
+	briefing_panel.offset_top = 0
 	briefing_panel.offset_left = 0
 	briefing_panel.offset_right = 0
 	briefing_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	briefing_panel.modulate.a = 0.0
 	briefing_panel.visible = false
+	var briefing_sb := StyleBoxFlat.new()
+	briefing_sb.bg_color = Color(0.05, 0.06, 0.09, 1.0)
+	briefing_sb.content_margin_left = 40
+	briefing_sb.content_margin_right = 40
+	briefing_sb.content_margin_top = 18
+	briefing_sb.content_margin_bottom = 24
+	briefing_sb.border_width_bottom = 4
+	briefing_sb.border_color = Color(1, 0.86, 0.45, 0.7)
+	briefing_panel.add_theme_stylebox_override("panel", briefing_sb)
 	info_layer.add_child(briefing_panel)
 	var bcenter := CenterContainer.new()
 	briefing_panel.add_child(bcenter)
 	var bvb := VBoxContainer.new()
 	bvb.alignment = BoxContainer.ALIGNMENT_CENTER
-	bvb.add_theme_constant_override("separation", 4)
+	bvb.add_theme_constant_override("separation", 6)
 	bcenter.add_child(bvb)
+	briefing_stats_label = Label.new()
+	briefing_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	briefing_stats_label.add_theme_font_size_override("font_size", 34)
+	briefing_stats_label.add_theme_color_override("font_color", Color(0.78, 0.88, 1.0))
+	briefing_stats_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	briefing_stats_label.add_theme_constant_override("outline_size", 4)
+	if font: briefing_stats_label.add_theme_font_override("font", font)
+	bvb.add_child(briefing_stats_label)
 	briefing_loc_label = Label.new()
 	briefing_loc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	briefing_loc_label.add_theme_font_size_override("font_size", 44)
+	briefing_loc_label.add_theme_font_size_override("font_size", 56)
 	briefing_loc_label.add_theme_color_override("font_color", Color(1, 0.86, 0.45))
 	briefing_loc_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	briefing_loc_label.add_theme_constant_override("outline_size", 5)
@@ -910,7 +928,7 @@ func _ensure_info_layer() -> void:
 	briefing_text_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	briefing_text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	briefing_text_label.custom_minimum_size = Vector2(1400, 0)
-	briefing_text_label.add_theme_font_size_override("font_size", 32)
+	briefing_text_label.add_theme_font_size_override("font_size", 42)
 	briefing_text_label.add_theme_color_override("font_color", Color(1, 1, 1))
 	briefing_text_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	briefing_text_label.add_theme_constant_override("outline_size", 4)
@@ -938,6 +956,7 @@ func show_briefing(location: String, text: String) -> void:
 	_ensure_info_layer()
 	briefing_loc_label.text = location
 	briefing_text_label.text = text
+	_update_briefing_stats()
 	if _briefing_tween and _briefing_tween.is_valid():
 		_briefing_tween.kill()
 	briefing_panel.modulate.a = 0.0
@@ -946,6 +965,24 @@ func show_briefing(location: String, text: String) -> void:
 	_briefing_tween.tween_property(briefing_panel, "modulate:a", 1.0, 0.45)
 	_briefing_tween.tween_interval(4.5)
 	_briefing_tween.tween_property(briefing_panel, "modulate:a", 0.0, 0.7)
+
+func _update_briefing_stats() -> void:
+	if not is_instance_valid(briefing_stats_label):
+		return
+	if mode_two_players:
+		briefing_stats_label.visible = false
+		return
+	briefing_stats_label.visible = true
+	var sm := get_node_or_null("/root/SaveManager")
+	if sm and sm.has_method("get_stats"):
+		var st: Dictionary = sm.call("get_stats")
+		var attempts: int = int(st.get("attempts", 0))
+		var completed: int = int(st.get("completed_count", 0))
+		var best_v: Variant = st.get("best_time_seconds", null)
+		var best_str: String = "-" if best_v == null else "%.2f" % float(best_v)
+		briefing_stats_label.text = "Attempts: %d    Completed: %d    Best: %s s" % [attempts, completed, best_str]
+	else:
+		briefing_stats_label.text = ""
 
 func queue_hint(text: String) -> void:
 	_ensure_info_layer()
